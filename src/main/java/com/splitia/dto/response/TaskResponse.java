@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,5 +32,15 @@ public class TaskResponse {
     private Integer position;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    // Expense association
+    private UUID expenseId;
+    
+    // Future expense fields
+    private BigDecimal futureExpenseAmount;
+    private String futureExpenseCurrency;
+    private UUID futureExpensePaidById;
+    private String futureExpensePaidByName;
+    private List<FutureExpenseShareResponse> futureExpenseShares;
 }
 

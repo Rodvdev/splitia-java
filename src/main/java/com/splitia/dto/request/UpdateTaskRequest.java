@@ -1,11 +1,13 @@
 package com.splitia.dto.request;
 
 import com.splitia.model.enums.TaskStatus;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -32,5 +34,18 @@ public class UpdateTaskRequest {
     private List<UUID> tagIds;
     
     private Integer position; // For reordering within status column
+    
+    // Expense association (optional - for referencing existing expense)
+    private UUID expenseId;
+    
+    // Future expense fields (for storing future expense info without creating Expense)
+    @DecimalMin(value = "0.01", message = "Future expense amount must be greater than 0")
+    private BigDecimal futureExpenseAmount;
+    
+    private String futureExpenseCurrency;
+    
+    private UUID futureExpensePaidById;
+    
+    private List<ExpenseShareRequest> futureExpenseShares;
 }
 

@@ -6,10 +6,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -70,5 +74,25 @@ public class Task extends BaseEntity {
     @Column(name = "position", nullable = false)
     @NotNull
     private Integer position = 0; // For ordering within status column
+    
+    // Expense relationship (optional - for referencing existing expense)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "expense_id")
+    private Expense expense;
+    
+    // Future expense fields (for storing future expense info without creating Expense)
+    @Column(name = "future_expense_amount", precision = 19, scale = 2)
+    private BigDecimal futureExpenseAmount;
+    
+    @Column(name = "future_expense_currency", length = 10)
+    private String futureExpenseCurrency = "USD";
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "future_expense_paid_by_id")
+    private User futureExpensePaidBy;
+    
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "future_expense_shares", columnDefinition = "jsonb")
+    private List<Map<String, Object>> futureExpenseShares;
 }
 

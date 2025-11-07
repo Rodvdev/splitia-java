@@ -1,12 +1,16 @@
 package com.splitia.service;
 
+import com.splitia.dto.request.CreateExpenseRequest;
 import com.splitia.dto.request.CreateTaskRequest;
+import com.splitia.dto.request.ExpenseShareRequest;
 import com.splitia.dto.request.UpdateTaskRequest;
+import com.splitia.dto.response.FutureExpenseShareResponse;
 import com.splitia.dto.response.TaskResponse;
 import com.splitia.dto.response.TaskTagResponse;
 import com.splitia.exception.BadRequestException;
 import com.splitia.exception.ForbiddenException;
 import com.splitia.exception.ResourceNotFoundException;
+import com.splitia.model.Expense;
 import com.splitia.model.Group;
 import com.splitia.model.GroupUser;
 import com.splitia.model.Task;
@@ -14,6 +18,7 @@ import com.splitia.model.TaskTag;
 import com.splitia.model.User;
 import com.splitia.model.enums.GroupRole;
 import com.splitia.model.enums.TaskStatus;
+import com.splitia.repository.ExpenseRepository;
 import com.splitia.repository.GroupRepository;
 import com.splitia.repository.GroupUserRepository;
 import com.splitia.repository.TaskRepository;
@@ -28,9 +33,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -43,6 +51,8 @@ public class TaskService {
     private final GroupRepository groupRepository;
     private final GroupUserRepository groupUserRepository;
     private final UserRepository userRepository;
+    private final ExpenseRepository expenseRepository;
+    private final ExpenseService expenseService;
     private final PlanService planService;
     
     public Page<TaskResponse> getTasksByGroup(UUID groupId, Pageable pageable) {
@@ -133,6 +143,11 @@ public class TaskService {
             task.setTags(tags);
         }
         
+        // Handle expense association
+        handleExpenseAssociation(task, request.getExpenseId(), request.getCreateFutureExpense(), 
+                request.getFutureExpenseAmount(), request.getFutureExpenseCurrency(), 
+                request.getFutureExpensePaidById(), request.getFutureExpenseShares(), group);
+        
         task = taskRepository.save(task);
         return toResponse(task);
     }
@@ -153,8 +168,14 @@ public class TaskService {
         if (request.getDescription() != null) {
             task.setDescription(request.getDescription());
         }
+        TaskStatus previousStatus = task.getStatus();
         if (request.getStatus() != null) {
             task.setStatus(request.getStatus());
+            
+            // Convert future expense to real expense when task is marked as DONE
+            if (request.getStatus() == TaskStatus.DONE && previousStatus != TaskStatus.DONE) {
+                convertFutureExpenseToExpense(task);
+            }
         }
         if (request.getPriority() != null) {
             task.setPriority(request.getPriority());
@@ -189,6 +210,14 @@ public class TaskService {
                 tags.add(tag);
             }
             task.setTags(tags);
+        }
+        
+        // Handle expense association updates
+        if (request.getExpenseId() != null || request.getFutureExpenseAmount() != null || 
+            request.getFutureExpensePaidById() != null || request.getFutureExpenseShares() != null) {
+            handleExpenseAssociation(task, request.getExpenseId(), null,
+                    request.getFutureExpenseAmount(), request.getFutureExpenseCurrency(),
+                    request.getFutureExpensePaidById(), request.getFutureExpenseShares(), task.getGroup());
         }
         
         task = taskRepository.save(task);
@@ -266,7 +295,220 @@ public class TaskService {
                     .collect(Collectors.toList()));
         }
         
+        // Expense association
+        if (task.getExpense() != null) {
+            response.setExpenseId(task.getExpense().getId());
+        }
+        
+        // Future expense fields
+        if (task.getFutureExpenseAmount() != null) {
+            response.setFutureExpenseAmount(task.getFutureExpenseAmount());
+            response.setFutureExpenseCurrency(task.getFutureExpenseCurrency());
+        }
+        
+        if (task.getFutureExpensePaidBy() != null) {
+            response.setFutureExpensePaidById(task.getFutureExpensePaidBy().getId());
+            response.setFutureExpensePaidByName(task.getFutureExpensePaidBy().getName() + " " + 
+                    task.getFutureExpensePaidBy().getLastName());
+        }
+        
+        if (task.getFutureExpenseShares() != null && !task.getFutureExpenseShares().isEmpty()) {
+            response.setFutureExpenseShares(convertFutureExpenseSharesToResponse(task.getFutureExpenseShares()));
+        }
+        
         return response;
+    }
+    
+    private void handleExpenseAssociation(Task task, UUID expenseId, Boolean createFutureExpense,
+                                         BigDecimal futureExpenseAmount, String futureExpenseCurrency,
+                                         UUID futureExpensePaidById, List<ExpenseShareRequest> futureExpenseShares,
+                                         Group group) {
+        // If expenseId is provided, associate existing expense
+        if (expenseId != null) {
+            Expense expense = expenseRepository.findByIdAndDeletedAtIsNull(expenseId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseId));
+            
+            // Validate expense belongs to the same group
+            if (expense.getGroup() == null || !expense.getGroup().getId().equals(group.getId())) {
+                throw new BadRequestException("Expense must belong to the same group as the task");
+            }
+            
+            task.setExpense(expense);
+            // Clear future expense fields when associating existing expense
+            task.setFutureExpenseAmount(null);
+            task.setFutureExpenseCurrency(null);
+            task.setFutureExpensePaidBy(null);
+            task.setFutureExpenseShares(null);
+            return;
+        }
+        
+        // If createFutureExpense is true, create expense immediately
+        if (Boolean.TRUE.equals(createFutureExpense) && futureExpenseAmount != null && 
+            futureExpensePaidById != null && futureExpenseShares != null && !futureExpenseShares.isEmpty()) {
+            
+            // Validate shares
+            validateFutureExpenseShares(futureExpenseShares, futureExpenseAmount, group);
+            
+            CreateExpenseRequest expenseRequest = new CreateExpenseRequest();
+            expenseRequest.setAmount(futureExpenseAmount);
+            expenseRequest.setDescription("Gasto asociado a tarea: " + task.getTitle());
+            expenseRequest.setDate(LocalDateTime.now());
+            expenseRequest.setCurrency(futureExpenseCurrency != null ? futureExpenseCurrency : "USD");
+            expenseRequest.setGroupId(group.getId());
+            expenseRequest.setPaidById(futureExpensePaidById);
+            expenseRequest.setShares(futureExpenseShares);
+            
+            Expense createdExpense = expenseRepository.findByIdAndDeletedAtIsNull(
+                    expenseService.createExpense(expenseRequest).getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseRequest.getPaidById()));
+            
+            task.setExpense(createdExpense);
+            // Clear future expense fields
+            task.setFutureExpenseAmount(null);
+            task.setFutureExpenseCurrency(null);
+            task.setFutureExpensePaidBy(null);
+            task.setFutureExpenseShares(null);
+            return;
+        }
+        
+        // Otherwise, store future expense info
+        if (futureExpenseAmount != null || futureExpensePaidById != null || 
+            (futureExpenseShares != null && !futureExpenseShares.isEmpty())) {
+            
+            if (futureExpenseAmount == null) {
+                throw new BadRequestException("Future expense amount is required");
+            }
+            if (futureExpensePaidById == null) {
+                throw new BadRequestException("Future expense paid by user ID is required");
+            }
+            if (futureExpenseShares == null || futureExpenseShares.isEmpty()) {
+                throw new BadRequestException("Future expense shares are required");
+            }
+            
+            // Validate shares
+            validateFutureExpenseShares(futureExpenseShares, futureExpenseAmount, group);
+            
+            User paidBy = userRepository.findByIdAndDeletedAtIsNull(futureExpensePaidById)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", futureExpensePaidById));
+            
+            task.setFutureExpenseAmount(futureExpenseAmount);
+            task.setFutureExpenseCurrency(futureExpenseCurrency != null ? futureExpenseCurrency : "USD");
+            task.setFutureExpensePaidBy(paidBy);
+            task.setFutureExpenseShares(convertExpenseSharesToMapList(futureExpenseShares));
+        }
+    }
+    
+    private void validateFutureExpenseShares(List<ExpenseShareRequest> shares, BigDecimal totalAmount, Group group) {
+        BigDecimal totalShares = shares.stream()
+                .map(ExpenseShareRequest::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        if (totalShares.compareTo(totalAmount) != 0) {
+            throw new BadRequestException("Sum of shares must equal the future expense amount");
+        }
+        
+        // Validate all participants are group members
+        for (ExpenseShareRequest share : shares) {
+            if (!groupUserRepository.existsByUserIdAndGroupId(share.getUserId(), group.getId())) {
+                throw new BadRequestException("All future expense participants must be members of the group");
+            }
+        }
+    }
+    
+    private List<Map<String, Object>> convertExpenseSharesToMapList(List<ExpenseShareRequest> shares) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ExpenseShareRequest share : shares) {
+            Map<String, Object> shareMap = new HashMap<>();
+            shareMap.put("userId", share.getUserId().toString());
+            shareMap.put("amount", share.getAmount());
+            shareMap.put("type", share.getType() != null ? share.getType().name() : "EQUAL");
+            result.add(shareMap);
+        }
+        return result;
+    }
+    
+    private List<FutureExpenseShareResponse> convertFutureExpenseSharesToResponse(List<Map<String, Object>> shares) {
+        List<FutureExpenseShareResponse> result = new ArrayList<>();
+        for (Map<String, Object> shareMap : shares) {
+            FutureExpenseShareResponse shareResponse = new FutureExpenseShareResponse();
+            UUID userId = UUID.fromString(shareMap.get("userId").toString());
+            shareResponse.setUserId(userId);
+            
+            User user = userRepository.findByIdAndDeletedAtIsNull(userId).orElse(null);
+            if (user != null) {
+                shareResponse.setUserName(user.getName() + " " + user.getLastName());
+            }
+            
+            if (shareMap.get("amount") instanceof Number) {
+                shareResponse.setAmount(BigDecimal.valueOf(((Number) shareMap.get("amount")).doubleValue()));
+            } else if (shareMap.get("amount") instanceof String) {
+                shareResponse.setAmount(new BigDecimal((String) shareMap.get("amount")));
+            }
+            
+            if (shareMap.get("type") != null) {
+                try {
+                    shareResponse.setType(com.splitia.model.enums.ShareType.valueOf(shareMap.get("type").toString()));
+                } catch (IllegalArgumentException e) {
+                    shareResponse.setType(com.splitia.model.enums.ShareType.EQUAL);
+                }
+            }
+            
+            result.add(shareResponse);
+        }
+        return result;
+    }
+    
+    @Transactional
+    private void convertFutureExpenseToExpense(Task task) {
+        // Only convert if there's future expense info and no expense already associated
+        if (task.getExpense() != null || task.getFutureExpenseAmount() == null || 
+            task.getFutureExpensePaidBy() == null || task.getFutureExpenseShares() == null || 
+            task.getFutureExpenseShares().isEmpty()) {
+            return;
+        }
+        
+        // Convert future expense shares to ExpenseShareRequest list
+        List<ExpenseShareRequest> shares = new ArrayList<>();
+        for (Map<String, Object> shareMap : task.getFutureExpenseShares()) {
+            ExpenseShareRequest shareRequest = new ExpenseShareRequest();
+            shareRequest.setUserId(UUID.fromString(shareMap.get("userId").toString()));
+            
+            if (shareMap.get("amount") instanceof Number) {
+                shareRequest.setAmount(BigDecimal.valueOf(((Number) shareMap.get("amount")).doubleValue()));
+            } else if (shareMap.get("amount") instanceof String) {
+                shareRequest.setAmount(new BigDecimal((String) shareMap.get("amount")));
+            }
+            
+            if (shareMap.get("type") != null) {
+                try {
+                    shareRequest.setType(com.splitia.model.enums.ShareType.valueOf(shareMap.get("type").toString()));
+                } catch (IllegalArgumentException e) {
+                    shareRequest.setType(com.splitia.model.enums.ShareType.EQUAL);
+                }
+            }
+            
+            shares.add(shareRequest);
+        }
+        
+        CreateExpenseRequest expenseRequest = new CreateExpenseRequest();
+        expenseRequest.setAmount(task.getFutureExpenseAmount());
+        expenseRequest.setDescription("Gasto completado de tarea: " + task.getTitle());
+        expenseRequest.setDate(LocalDateTime.now());
+        expenseRequest.setCurrency(task.getFutureExpenseCurrency() != null ? task.getFutureExpenseCurrency() : "USD");
+        expenseRequest.setGroupId(task.getGroup().getId());
+        expenseRequest.setPaidById(task.getFutureExpensePaidBy().getId());
+        expenseRequest.setShares(shares);
+        
+        Expense createdExpense = expenseRepository.findByIdAndDeletedAtIsNull(
+                expenseService.createExpense(expenseRequest).getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseRequest.getPaidById()));
+        
+        // Associate expense to task and clear future expense fields
+        task.setExpense(createdExpense);
+        task.setFutureExpenseAmount(null);
+        task.setFutureExpenseCurrency(null);
+        task.setFutureExpensePaidBy(null);
+        task.setFutureExpenseShares(null);
     }
     
     private User getCurrentUser() {
