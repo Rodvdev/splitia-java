@@ -5,7 +5,10 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -32,5 +35,9 @@ public class GroupUser extends BaseEntity {
     @JoinColumn(name = "group_id", nullable = false)
     @NotNull
     private Group group;
+    
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "permissions", columnDefinition = "jsonb")
+    private Map<String, Boolean> permissions;
 }
 

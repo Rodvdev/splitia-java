@@ -11,11 +11,14 @@ import com.splitia.repository.BudgetRepository;
 import com.splitia.repository.UserRepository;
 import com.splitia.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -25,6 +28,12 @@ public class BudgetService {
     private final BudgetRepository budgetRepository;
     private final UserRepository userRepository;
     private final BudgetMapper budgetMapper;
+    
+    public Page<BudgetResponse> getBudgets(Pageable pageable) {
+        User currentUser = getCurrentUser();
+        return budgetRepository.findByUserId(currentUser.getId(), pageable)
+                .map(budgetMapper::toResponse);
+    }
     
     @Transactional
     public BudgetResponse createBudget(CreateBudgetRequest request) {
@@ -42,15 +51,28 @@ public class BudgetService {
     }
     
     public BudgetResponse getBudgetById(UUID budgetId) {
-        Budget budget = budgetRepository.findById(budgetId)
+        User currentUser = getCurrentUser();
+        Budget budget = budgetRepository.findByIdAndDeletedAtIsNull(budgetId)
                 .orElseThrow(() -> new ResourceNotFoundException("Budget", "id", budgetId));
+        
+        // Verify ownership
+        if (!budget.getUser().getId().equals(currentUser.getId())) {
+            throw new ResourceNotFoundException("Budget", "id", budgetId);
+        }
+        
         return budgetMapper.toResponse(budget);
     }
     
     @Transactional
     public BudgetResponse updateBudget(UUID budgetId, UpdateBudgetRequest request) {
-        Budget budget = budgetRepository.findById(budgetId)
+        User currentUser = getCurrentUser();
+        Budget budget = budgetRepository.findByIdAndDeletedAtIsNull(budgetId)
                 .orElseThrow(() -> new ResourceNotFoundException("Budget", "id", budgetId));
+        
+        // Verify ownership
+        if (!budget.getUser().getId().equals(currentUser.getId())) {
+            throw new ResourceNotFoundException("Budget", "id", budgetId);
+        }
         
         if (request.getAmount() != null) {
             budget.setAmount(request.getAmount());
@@ -64,17 +86,25 @@ public class BudgetService {
     }
     
     @Transactional
-    public void deleteBudget(UUID budgetId) {
-        Budget budget = budgetRepository.findById(budgetId)
+    public void softDeleteBudget(UUID budgetId) {
+        User currentUser = getCurrentUser();
+        Budget budget = budgetRepository.findByIdAndDeletedAtIsNull(budgetId)
                 .orElseThrow(() -> new ResourceNotFoundException("Budget", "id", budgetId));
-        budgetRepository.delete(budget);
+        
+        // Verify ownership
+        if (!budget.getUser().getId().equals(currentUser.getId())) {
+            throw new ResourceNotFoundException("Budget", "id", budgetId);
+        }
+        
+        budget.setDeletedAt(LocalDateTime.now());
+        budgetRepository.save(budget);
     }
     
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         
-        return userRepository.findById(userDetails.getUserId())
+        return userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
     }
 }
