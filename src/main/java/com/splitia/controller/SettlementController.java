@@ -26,9 +26,9 @@ public class SettlementController {
     private final SettlementService settlementService;
     
     @GetMapping
-    @Operation(summary = "Get settlements for a group (paginated)")
+    @Operation(summary = "Get settlements (paginated). If groupId is provided, returns settlements for that group. Otherwise returns all settlements for the current user.")
     public ResponseEntity<ApiResponse<Page<SettlementResponse>>> getSettlements(
-            @RequestParam UUID groupId,
+            @RequestParam(required = false) UUID groupId,
             Pageable pageable) {
         Page<SettlementResponse> settlements = settlementService.getSettlements(groupId, pageable);
         return ResponseEntity.ok(ApiResponse.success(settlements));

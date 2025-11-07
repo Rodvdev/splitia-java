@@ -81,7 +81,7 @@ BEGIN
             'Rodrigo',
             'Splitia',
             'rodrigo@splitia.com',
-            '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', -- splitia123
+            '$2a$12$CVhNdtJqnRNjVyNAH952.eTkSnQIqNmo69Eh6hflRO/IsIvCwk6Zm', -- splitia123
             'USD',
             'es',
             'USER',
@@ -92,7 +92,7 @@ BEGIN
             'Luis',
             'Splitia',
             'luis@splitia.com',
-            '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', -- splitia123
+            '$2a$12$CVhNdtJqnRNjVyNAH952.eTkSnQIqNmo69Eh6hflRO/IsIvCwk6Zm', -- splitia123
             'USD',
             'es',
             'USER',
@@ -103,7 +103,7 @@ BEGIN
             'Israel',
             'Splitia',
             'israel@splitia.com',
-            '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', -- splitia123
+            '$2a$12$CVhNdtJqnRNjVyNAH952.eTkSnQIqNmo69Eh6hflRO/IsIvCwk6Zm', -- splitia123
             'USD',
             'es',
             'USER',

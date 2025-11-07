@@ -27,6 +27,9 @@ public interface SettlementRepository extends JpaRepository<Settlement, UUID> {
     @Query("SELECT s FROM Settlement s WHERE (s.initiatedBy.id = :initiatedById OR s.settledWithUser.id = :settledWithUserId) AND s.deletedAt IS NULL")
     List<Settlement> findByInitiatedByIdOrSettledWithUserId(@Param("initiatedById") UUID initiatedById, @Param("settledWithUserId") UUID settledWithUserId);
     
+    @Query("SELECT s FROM Settlement s WHERE (s.initiatedBy.id = :userId OR s.settledWithUser.id = :userId) AND s.deletedAt IS NULL")
+    Page<Settlement> findByUserId(@Param("userId") UUID userId, Pageable pageable);
+    
     @Query("SELECT s FROM Settlement s WHERE s.id = :id AND s.deletedAt IS NULL")
     Optional<Settlement> findByIdAndDeletedAtIsNull(@Param("id") UUID id);
 }

@@ -1,5 +1,6 @@
 package com.splitia.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.splitia.model.enums.SettlementStatus;
 import com.splitia.model.enums.SettlementType;
 import jakarta.persistence.*;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @Table(name = "settlements")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Settlement extends BaseEntity {
     
     @Id

@@ -32,11 +32,18 @@ public class SettlementService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     
+    @Transactional(readOnly = true)
     public Page<SettlementResponse> getSettlements(UUID groupId, Pageable pageable) {
         User currentUser = getCurrentUser();
-        // Users can see settlements for groups they belong to
-        return settlementRepository.findByGroupId(groupId, pageable)
-                .map(settlementMapper::toResponse);
+        if (groupId != null) {
+            // Users can see settlements for groups they belong to
+            return settlementRepository.findByGroupId(groupId, pageable)
+                    .map(settlementMapper::toResponse);
+        } else {
+            // If no groupId provided, return all settlements for the current user
+            return settlementRepository.findByUserId(currentUser.getId(), pageable)
+                    .map(settlementMapper::toResponse);
+        }
     }
     
     @Transactional
@@ -61,6 +68,7 @@ public class SettlementService {
         return settlementMapper.toResponse(settlement);
     }
     
+    @Transactional(readOnly = true)
     public SettlementResponse getSettlementById(UUID settlementId) {
         Settlement settlement = settlementRepository.findByIdAndDeletedAtIsNull(settlementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Settlement", "id", settlementId));

@@ -1,5 +1,7 @@
 package com.splitia.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.splitia.model.enums.SubscriptionPlan;
 import com.splitia.model.enums.SubscriptionStatus;
 import jakarta.persistence.*;
@@ -17,6 +19,7 @@ import java.util.UUID;
 @Table(name = "subscriptions")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Subscription extends BaseEntity {
     
     @Id
@@ -30,6 +33,7 @@ public class Subscription extends BaseEntity {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plan_id")
+    @JsonIgnore
     private Plan plan;
     
     @Enumerated(EnumType.STRING)
@@ -65,9 +69,10 @@ public class Subscription extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @NotNull
+    @JsonIgnore
     private User user;
     
     @OneToMany(mappedBy = "subscription", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<SubscriptionPayment> payments = new ArrayList<>();
 }
-
