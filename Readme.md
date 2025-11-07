@@ -598,6 +598,87 @@ server.port=8081
    ```
    El flag `-U` fuerza la actualización de dependencias
 
+## Planes de Suscripción
+
+Splitia ofrece tres planes de suscripción con diferentes características y límites:
+
+### Plan FREE (Gratuito)
+- **Precio:** $0.00/mes
+- **Grupos:** 1 grupo máximo
+- **Miembros por grupo:** 5 miembros máximo
+- **Solicitudes IA/mes:** 10 solicitudes
+- **Gastos por grupo:** 50 gastos máximo
+- **Presupuestos por grupo:** 3 presupuestos máximo
+- **Kanban:** ❌ No disponible
+- **Análisis avanzados:** ❌ No disponible
+- **Exportación de datos:** ❌ No disponible
+- **Soporte prioritario:** ❌ No disponible
+
+### Plan PRO ($9.99/mes)
+- **Precio:** $9.99/mes
+- **Grupos:** 10 grupos máximo
+- **Miembros por grupo:** 50 miembros máximo
+- **Solicitudes IA/mes:** 500 solicitudes
+- **Gastos por grupo:** 1,000 gastos máximo
+- **Presupuestos por grupo:** 50 presupuestos máximo
+- **Kanban:** ✅ Disponible
+- **Análisis avanzados:** ✅ Disponible
+- **Exportación de datos:** ✅ Disponible
+- **Soporte prioritario:** ❌ No disponible
+
+### Plan ENTERPRISE ($29.99/mes)
+- **Precio:** $29.99/mes
+- **Grupos:** Ilimitado
+- **Miembros por grupo:** Ilimitado
+- **Solicitudes IA/mes:** Ilimitado
+- **Gastos por grupo:** Ilimitado
+- **Presupuestos por grupo:** Ilimitado
+- **Kanban:** ✅ Disponible
+- **Análisis avanzados:** ✅ Disponible
+- **Exportación de datos:** ✅ Disponible
+- **Soporte prioritario:** ✅ Disponible
+
+### Gestión de Suscripciones
+
+Los usuarios pueden gestionar sus suscripciones mediante los endpoints `/api/subscriptions`:
+
+- **Crear suscripción:** `POST /api/subscriptions`
+- **Ver suscripción actual:** `GET /api/subscriptions/current`
+- **Listar todas las suscripciones:** `GET /api/subscriptions`
+- **Actualizar suscripción:** `PUT /api/subscriptions/{id}`
+- **Cancelar suscripción:** `DELETE /api/subscriptions/{id}` (soft delete)
+
+### Validación de Límites
+
+El sistema valida automáticamente los límites del plan antes de permitir operaciones:
+
+- **Crear grupos:** Verifica límite de grupos del plan
+- **Agregar miembros:** Verifica límite de miembros por grupo
+- **Usar IA:** Verifica límite de solicitudes mensuales
+- **Crear gastos:** Verifica límite de gastos por grupo
+- **Crear presupuestos:** Verifica límite de presupuestos por grupo
+- **Acceder a Kanban:** Verifica que el plan tenga acceso a Kanban
+
+Si un usuario intenta realizar una operación que excede su límite, recibirá un error `BadRequestException` con un mensaje descriptivo indicando el límite alcanzado y sugiriendo actualizar el plan.
+
+### Usuarios de Prueba PRO
+
+El sistema incluye 3 usuarios PRO de prueba creados automáticamente:
+
+1. **rodrigo@splitia.com** (password: `splitia123`)
+   - Plan: PRO
+   - Rol en grupo "Diseño de Software": ADMIN
+
+2. **luis@splitia.com** (password: `splitia123`)
+   - Plan: PRO
+   - Rol en grupo "Diseño de Software": MEMBER
+
+3. **israel@splitia.com** (password: `splitia123`)
+   - Plan: PRO
+   - Rol en grupo "Diseño de Software": MEMBER
+
+Estos usuarios tienen acceso completo a todas las funcionalidades PRO, incluyendo Kanban, y están pre-configurados en un grupo compartido llamado "Diseño de Software".
+
 ## Documentación de API
 
 Una vez que la aplicación esté ejecutándose, accede a la documentación Swagger en:
@@ -816,8 +897,29 @@ Authorization: Bearer <token>
 - `PUT /api/support/tickets/{id}` - Actualizar ticket (Admin only)
 - `DELETE /api/support/tickets/{id}` - Eliminar ticket (soft delete, Admin only)
 
+### Tareas Kanban (`/api/tasks`)
+- `GET /api/tasks/group/{groupId}` - Listar tareas del grupo (paginado)
+- `GET /api/tasks/group/{groupId}/status/{status}` - Tareas por estado (para columnas Kanban: TODO, DOING, DONE)
+- `GET /api/tasks/{id}` - Obtener tarea por ID
+- `POST /api/tasks` - Crear nueva tarea (requiere plan PRO o ENTERPRISE)
+- `PUT /api/tasks/{id}` - Actualizar tarea
+- `DELETE /api/tasks/{id}` - Eliminar tarea (soft delete)
+
+**Nota:** El acceso a Kanban está disponible solo para usuarios con plan PRO o ENTERPRISE.
+
+### Etiquetas de Tareas (`/api/task-tags`)
+- `GET /api/task-tags/group/{groupId}` - Listar etiquetas del grupo
+- `GET /api/task-tags/{id}` - Obtener etiqueta por ID
+- `POST /api/task-tags` - Crear nueva etiqueta (requiere plan PRO o ENTERPRISE)
+- `PUT /api/task-tags/{id}` - Actualizar etiqueta
+- `DELETE /api/task-tags/{id}` - Eliminar etiqueta (soft delete, solo admins del grupo)
+
+**Nota:** Las etiquetas de tareas están disponibles solo para usuarios con plan PRO o ENTERPRISE.
+
 ### IA (`/api/ai`)
 - `POST /api/ai/process-message` - Procesar mensaje con IA
+
+**Nota:** Los límites de solicitudes de IA varían según el plan del usuario (ver sección de Planes).
 
 #### Notas Importantes sobre los Endpoints
 
@@ -839,6 +941,11 @@ Authorization: Bearer <token>
 - Los administradores de grupo (`GroupRole.ADMIN`) pueden gestionar miembros y permisos dentro de sus grupos
 - Los administradores del sistema (`UserRole.ADMIN`) tienen acceso completo a todos los recursos mediante `/api/admin`
 - Los permisos granulares en grupos se almacenan en formato JSONB y pueden incluir permisos personalizados como `canEditExpenses`, `canDeleteExpenses`, etc.
+
+**Planes y Límites:**
+- Los usuarios tienen límites según su plan de suscripción (FREE, PRO, ENTERPRISE)
+- Algunas funcionalidades como Kanban están disponibles solo para planes PRO y ENTERPRISE
+- Los límites se validan automáticamente antes de permitir operaciones
 
 ### Administración (`/api/admin`)
 
@@ -1056,16 +1163,92 @@ mvn clean install
 curl http://localhost:8080/actuator/health
 ```
 
+## Sistema Kanban
+
+Splitia incluye un sistema completo de gestión de tareas tipo Kanban para grupos, disponible para usuarios con plan PRO o ENTERPRISE.
+
+### Características del Kanban
+
+- **Tres columnas:** TODO, DOING, DONE
+- **Asignación de responsables:** Cada tarea puede asignarse a un miembro del grupo
+- **Fechas:** Fecha de inicio y fecha de vencimiento
+- **Prioridades:** LOW, MEDIUM, HIGH, URGENT
+- **Etiquetas:** Etiquetas personalizadas por grupo con colores
+- **Ordenamiento:** Posición personalizable dentro de cada columna
+
+### Uso del Kanban
+
+#### Obtener tareas por estado (para columnas Kanban)
+
+```bash
+# Obtener tareas en estado TODO
+GET /api/tasks/group/{groupId}/status/TODO
+
+# Obtener tareas en estado DOING
+GET /api/tasks/group/{groupId}/status/DOING
+
+# Obtener tareas en estado DONE
+GET /api/tasks/group/{groupId}/status/DONE
+```
+
+#### Crear una tarea
+
+```bash
+POST /api/tasks
+{
+  "title": "Implementar login",
+  "description": "Crear sistema de autenticación con JWT",
+  "groupId": "uuid-del-grupo",
+  "assignedToId": "uuid-del-usuario",
+  "priority": "HIGH",
+  "startDate": "2025-11-01",
+  "dueDate": "2025-12-31",
+  "tagIds": ["uuid-tag-1", "uuid-tag-2"]
+}
+```
+
+#### Mover tarea entre columnas
+
+```bash
+PUT /api/tasks/{taskId}
+{
+  "status": "DOING",
+  "position": 0
+}
+```
+
+#### Crear etiqueta
+
+```bash
+POST /api/task-tags
+{
+  "name": "Urgente",
+  "color": "#FF0000",
+  "groupId": "uuid-del-grupo"
+}
+```
+
+### Permisos del Kanban
+
+- **Crear/Editar tareas:** Cualquier miembro del grupo
+- **Eliminar tareas:** Solo el creador o admin del grupo
+- **Crear etiquetas:** Cualquier miembro del grupo
+- **Eliminar etiquetas:** Solo admins del grupo
+
 ## Próximos Pasos
 
-1. Implementar lógica completa de cálculo de balances
-2. Integrar servicio de IA (OpenAI/Claude)
-3. Integrar Stripe para suscripciones
-4. Implementar WebSocket para chat en tiempo real
-5. Agregar más tests de integración
-6. Optimizar consultas con índices adicionales
-7. Implementar caching con Redis
-8. Configurar CI/CD pipeline
+1. ✅ Sistema de planes de suscripción (FREE, PRO, ENTERPRISE)
+2. ✅ Sistema Kanban de tareas
+3. Implementar lógica completa de cálculo de balances
+4. Integrar servicio de IA (OpenAI/Claude)
+5. Integrar Stripe para pagos de suscripciones
+6. Implementar WebSocket para chat en tiempo real
+7. Agregar más tests de integración
+8. Optimizar consultas con índices adicionales
+9. Implementar caching con Redis
+10. Configurar CI/CD pipeline
+11. Notificaciones para tareas próximas a vencer
+12. Reportes y analytics de productividad por grupo
 
 ## Contribución
 
@@ -1085,5 +1268,16 @@ Splitia Team - support@splitia.com
 
 ---
 
-**Versión**: 1.0.0  
-**Última actualización**: 2024
+**Versión**: 2.0.0  
+**Última actualización**: Noviembre 2025
+
+---
+
+## 📚 Documentación Adicional
+
+Para más detalles sobre las actualizaciones recientes, consulta el archivo [ACTUALIZACIONES.md](./ACTUALIZACIONES.md) que incluye:
+
+- Detalles completos del sistema de planes de suscripción
+- Documentación completa del sistema Kanban
+- Lista de archivos modificados y creados
+- Guías de uso y ejemplos

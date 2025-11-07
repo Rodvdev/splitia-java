@@ -184,9 +184,9 @@
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-maven-plugin</artifactId>
                 <configuration>
-                    <url>jdbc:postgresql://localhost:5432/splitia</url>
-                    <user>postgres</user>
-                    <password>postgres</password>
+                    <url>jdbc:postgresql://ep-frosty-frost-a4vt3mjk-pooler.us-east-1.aws.neon.tech:5432/neondb?sslmode=require</url>
+                    <user>neondb_owner</user>
+                    <password>npg_Yy37LqsWcUXV</password>
                 </configuration>
             </plugin>
         </plugins>
