@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,7 +47,7 @@ public class ExpenseService {
     @Transactional
     public ExpenseResponse createExpense(CreateExpenseRequest request) {
         User currentUser = getCurrentUser();
-        User paidBy = userRepository.findById(request.getPaidById())
+        User paidBy = userRepository.findByIdAndDeletedAtIsNull(request.getPaidById())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getPaidById()));
         
         Expense expense = new Expense();
@@ -59,7 +60,7 @@ public class ExpenseService {
         expense.setPaidBy(paidBy);
         
         if (request.getGroupId() != null) {
-            Group group = groupRepository.findById(request.getGroupId())
+            Group group = groupRepository.findByIdAndDeletedAtIsNull(request.getGroupId())
                     .orElseThrow(() -> new ResourceNotFoundException("Group", "id", request.getGroupId()));
             
             // Verificar que el usuario es miembro del grupo
@@ -84,7 +85,7 @@ public class ExpenseService {
         for (ExpenseShareRequest shareRequest : request.getShares()) {
             ExpenseShare share = new ExpenseShare();
             share.setExpense(expense);
-            share.setUser(userRepository.findById(shareRequest.getUserId())
+            share.setUser(userRepository.findByIdAndDeletedAtIsNull(shareRequest.getUserId())
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", shareRequest.getUserId())));
             share.setAmount(shareRequest.getAmount());
             share.setType(shareRequest.getType());
@@ -111,7 +112,7 @@ public class ExpenseService {
     }
     
     public ExpenseResponse getExpenseById(UUID expenseId) {
-        Expense expense = expenseRepository.findById(expenseId)
+        Expense expense = expenseRepository.findByIdAndDeletedAtIsNull(expenseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseId));
         
         User currentUser = getCurrentUser();
@@ -124,7 +125,7 @@ public class ExpenseService {
         } else if (!expense.getPaidBy().getId().equals(currentUser.getId())) {
             // Verificar si el usuario tiene un share
             boolean hasShare = expense.getShares().stream()
-                    .anyMatch(share -> share.getUser().getId().equals(currentUser.getId()));
+                    .anyMatch(share -> share.getUser().getId().equals(currentUser.getId()) && share.getDeletedAt() == null);
             if (!hasShare) {
                 throw new ForbiddenException("You do not have access to this expense");
             }
@@ -135,7 +136,7 @@ public class ExpenseService {
     
     @Transactional
     public ExpenseResponse updateExpense(UUID expenseId, UpdateExpenseRequest request) {
-        Expense expense = expenseRepository.findById(expenseId)
+        Expense expense = expenseRepository.findByIdAndDeletedAtIsNull(expenseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseId));
         
         User currentUser = getCurrentUser();
@@ -174,7 +175,12 @@ public class ExpenseService {
         
         // Actualizar shares si se proporcionan
         if (request.getShares() != null && !request.getShares().isEmpty()) {
-            expenseShareRepository.deleteByExpenseId(expenseId);
+            // Soft delete existing shares
+            List<ExpenseShare> existingShares = expenseShareRepository.findByExpenseId(expenseId);
+            for (ExpenseShare share : existingShares) {
+                share.setDeletedAt(LocalDateTime.now());
+                expenseShareRepository.save(share);
+            }
             
             BigDecimal totalShares = request.getShares().stream()
                     .map(ExpenseShareRequest::getAmount)
@@ -187,7 +193,7 @@ public class ExpenseService {
             for (ExpenseShareRequest shareRequest : request.getShares()) {
                 ExpenseShare share = new ExpenseShare();
                 share.setExpense(expense);
-                share.setUser(userRepository.findById(shareRequest.getUserId())
+                share.setUser(userRepository.findByIdAndDeletedAtIsNull(shareRequest.getUserId())
                         .orElseThrow(() -> new ResourceNotFoundException("User", "id", shareRequest.getUserId())));
                 share.setAmount(shareRequest.getAmount());
                 share.setType(shareRequest.getType());
@@ -199,8 +205,8 @@ public class ExpenseService {
     }
     
     @Transactional
-    public void deleteExpense(UUID expenseId) {
-        Expense expense = expenseRepository.findById(expenseId)
+    public void softDeleteExpense(UUID expenseId) {
+        Expense expense = expenseRepository.findByIdAndDeletedAtIsNull(expenseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Expense", "id", expenseId));
         
         User currentUser = getCurrentUser();
@@ -215,14 +221,15 @@ public class ExpenseService {
             throw new ForbiddenException("You do not have permission to delete this expense");
         }
         
-        expenseRepository.delete(expense);
+        expense.setDeletedAt(LocalDateTime.now());
+        expenseRepository.save(expense);
     }
     
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         
-        return userRepository.findById(userDetails.getUserId())
+        return userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
     }
 }

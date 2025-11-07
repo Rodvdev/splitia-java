@@ -1,6 +1,8 @@
 package com.splitia.controller;
 
+import com.splitia.dto.request.AssignPermissionsRequest;
 import com.splitia.dto.request.CreateGroupRequest;
+import com.splitia.dto.request.UpdateGroupMemberRequest;
 import com.splitia.dto.request.UpdateGroupRequest;
 import com.splitia.dto.response.ApiResponse;
 import com.splitia.dto.response.GroupResponse;
@@ -56,9 +58,9 @@ public class GroupController {
     }
     
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete group")
+    @Operation(summary = "Delete group (soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteGroup(@PathVariable UUID id) {
-        groupService.deleteGroup(id);
+        groupService.softDeleteGroup(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Group deleted successfully"));
     }
     
@@ -78,6 +80,26 @@ public class GroupController {
             @PathVariable UUID userId) {
         groupService.removeMember(id, userId);
         return ResponseEntity.ok(ApiResponse.success(null, "Member removed successfully"));
+    }
+    
+    @PutMapping("/{id}/members/{userId}")
+    @Operation(summary = "Update member role and permissions")
+    public ResponseEntity<ApiResponse<Void>> updateMember(
+            @PathVariable UUID id,
+            @PathVariable UUID userId,
+            @Valid @RequestBody UpdateGroupMemberRequest request) {
+        groupService.updateMemberRole(id, userId, request);
+        return ResponseEntity.ok(ApiResponse.success(null, "Member updated successfully"));
+    }
+    
+    @PutMapping("/{id}/members/{userId}/permissions")
+    @Operation(summary = "Assign permissions to group member")
+    public ResponseEntity<ApiResponse<Void>> assignPermissions(
+            @PathVariable UUID id,
+            @PathVariable UUID userId,
+            @Valid @RequestBody AssignPermissionsRequest request) {
+        groupService.assignPermissions(id, userId, request);
+        return ResponseEntity.ok(ApiResponse.success(null, "Permissions assigned successfully"));
     }
 }
 

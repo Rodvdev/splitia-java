@@ -1,6 +1,8 @@
 package com.splitia.service;
 
+import com.splitia.dto.request.AssignPermissionsRequest;
 import com.splitia.dto.request.CreateGroupRequest;
+import com.splitia.dto.request.UpdateGroupMemberRequest;
 import com.splitia.dto.request.UpdateGroupRequest;
 import com.splitia.dto.response.GroupResponse;
 import com.splitia.exception.BadRequestException;
@@ -25,7 +27,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -76,7 +80,7 @@ public class GroupService {
     }
     
     public GroupResponse getGroupById(UUID groupId) {
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         // Verificar que el usuario es miembro
@@ -90,7 +94,7 @@ public class GroupService {
     
     @Transactional
     public GroupResponse updateGroup(UUID groupId, UpdateGroupRequest request) {
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         User currentUser = getCurrentUser();
@@ -118,8 +122,8 @@ public class GroupService {
     }
     
     @Transactional
-    public void deleteGroup(UUID groupId) {
-        Group group = groupRepository.findById(groupId)
+    public void softDeleteGroup(UUID groupId) {
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         User currentUser = getCurrentUser();
@@ -128,19 +132,19 @@ public class GroupService {
             throw new ForbiddenException("Only the creator can delete the group");
         }
         
-        groupRepository.delete(group);
+        group.setDeletedAt(LocalDateTime.now());
+        groupRepository.save(group);
     }
     
     @Transactional
     public void addMember(UUID groupId, UUID userId) {
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         User currentUser = getCurrentUser();
-        GroupUser currentGroupUser = groupUserRepository.findByUserIdAndGroupId(currentUser.getId(), groupId)
-                .orElseThrow(() -> new ForbiddenException("You are not a member of this group"));
         
-        if (currentGroupUser.getRole() != GroupRole.ADMIN) {
+        // Only group admins or system admins can add members
+        if (!isGroupAdminOrSystemAdmin(currentUser, group)) {
             throw new ForbiddenException("Only admins can add members");
         }
         
@@ -148,7 +152,7 @@ public class GroupService {
             throw new BadRequestException("User is already a member of this group");
         }
         
-        User userToAdd = userRepository.findById(userId)
+        User userToAdd = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         
         GroupUser groupUser = new GroupUser();
@@ -160,14 +164,13 @@ public class GroupService {
     
     @Transactional
     public void removeMember(UUID groupId, UUID userId) {
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         User currentUser = getCurrentUser();
-        GroupUser currentGroupUser = groupUserRepository.findByUserIdAndGroupId(currentUser.getId(), groupId)
-                .orElseThrow(() -> new ForbiddenException("You are not a member of this group"));
         
-        if (currentGroupUser.getRole() != GroupRole.ADMIN) {
+        // Only group admins or system admins can remove members
+        if (!isGroupAdminOrSystemAdmin(currentUser, group)) {
             throw new ForbiddenException("Only admins can remove members");
         }
         
@@ -175,14 +178,85 @@ public class GroupService {
             throw new BadRequestException("Cannot remove the group creator");
         }
         
-        groupUserRepository.deleteByUserIdAndGroupId(userId, groupId);
+        GroupUser groupUser = groupUserRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("GroupUser", "id", userId));
+        
+        groupUser.setDeletedAt(LocalDateTime.now());
+        groupUserRepository.save(groupUser);
+    }
+    
+    @Transactional
+    public void updateMemberRole(UUID groupId, UUID userId, UpdateGroupMemberRequest request) {
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
+        
+        User currentUser = getCurrentUser();
+        
+        // Only group admins or system admins can update member roles
+        if (!isGroupAdminOrSystemAdmin(currentUser, group)) {
+            throw new ForbiddenException("Only admins can update member roles");
+        }
+        
+        GroupUser groupUser = groupUserRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("GroupUser", "id", userId));
+        
+        if (request.getRole() != null) {
+            groupUser.setRole(request.getRole());
+        }
+        if (request.getPermissions() != null) {
+            groupUser.setPermissions(request.getPermissions());
+        }
+        
+        groupUserRepository.save(groupUser);
+    }
+    
+    @Transactional
+    public void assignPermissions(UUID groupId, UUID userId, AssignPermissionsRequest request) {
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
+        
+        User currentUser = getCurrentUser();
+        
+        // Only group admins or system admins can assign permissions
+        if (!isGroupAdminOrSystemAdmin(currentUser, group)) {
+            throw new ForbiddenException("Only admins can assign permissions");
+        }
+        
+        GroupUser groupUser = groupUserRepository.findByUserIdAndGroupId(userId, groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("GroupUser", "id", userId));
+        
+        Map<String, Boolean> existingPermissions = groupUser.getPermissions();
+        if (existingPermissions == null) {
+            existingPermissions = new java.util.HashMap<>();
+        }
+        
+        // Merge new permissions with existing ones
+        if (request.getPermissions() != null) {
+            existingPermissions.putAll(request.getPermissions());
+        }
+        
+        groupUser.setPermissions(existingPermissions);
+        groupUserRepository.save(groupUser);
+    }
+    
+    private boolean isGroupAdminOrSystemAdmin(User user, Group group) {
+        // System admins can do anything
+        if (user.getRole() != null && user.getRole().equals("ADMIN")) {
+            return true;
+        }
+        
+        // Check if user is group admin
+        GroupUser groupUser = groupUserRepository.findByUserIdAndGroupId(user.getId(), group.getId())
+                .orElse(null);
+        
+        return groupUser != null && groupUser.getRole() == GroupRole.ADMIN;
     }
     
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         
-        return userRepository.findById(userDetails.getUserId())
+        return userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
     }
 }

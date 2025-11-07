@@ -1,20 +1,29 @@
 package com.splitia.repository;
 
 import com.splitia.model.Group;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface GroupRepository extends JpaRepository<Group, UUID> {
-    @Query("SELECT g FROM Group g JOIN g.members m WHERE m.user.id = :userId")
+    @Query("SELECT DISTINCT g FROM Group g JOIN g.members m WHERE m.user.id = :userId AND m.deletedAt IS NULL AND g.deletedAt IS NULL")
     List<Group> findByUserId(@Param("userId") UUID userId);
     
-    @Query("SELECT g FROM Group g WHERE g.createdBy.id = :userId")
+    @Query("SELECT DISTINCT g FROM Group g JOIN g.members m WHERE m.user.id = :userId AND m.deletedAt IS NULL AND g.deletedAt IS NULL")
+    Page<Group> findByUserId(@Param("userId") UUID userId, Pageable pageable);
+    
+    @Query("SELECT g FROM Group g WHERE g.createdBy.id = :userId AND g.deletedAt IS NULL")
     List<Group> findByCreatedById(@Param("userId") UUID userId);
+    
+    @Query("SELECT g FROM Group g WHERE g.id = :id AND g.deletedAt IS NULL")
+    Optional<Group> findByIdAndDeletedAtIsNull(@Param("id") UUID id);
 }
 

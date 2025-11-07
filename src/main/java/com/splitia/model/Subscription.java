@@ -28,6 +28,10 @@ public class Subscription extends BaseEntity {
     @NotNull
     private SubscriptionPlan planType = SubscriptionPlan.FREE;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_id")
+    private Plan plan;
+    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @NotNull

@@ -19,6 +19,7 @@ public class UserResponse {
     private String image;
     private String currency;
     private String language;
+    private String role;
     private LocalDateTime createdAt;
 }
 

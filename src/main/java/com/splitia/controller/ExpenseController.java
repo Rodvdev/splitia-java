@@ -59,9 +59,9 @@ public class ExpenseController {
     }
     
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete expense")
+    @Operation(summary = "Delete expense (soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteExpense(@PathVariable UUID id) {
-        expenseService.deleteExpense(id);
+        expenseService.softDeleteExpense(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Expense deleted successfully"));
     }
 }

@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +24,13 @@ import java.util.UUID;
 public class BudgetController {
     
     private final BudgetService budgetService;
+    
+    @GetMapping
+    @Operation(summary = "Get user budgets (paginated)")
+    public ResponseEntity<ApiResponse<Page<BudgetResponse>>> getBudgets(Pageable pageable) {
+        Page<BudgetResponse> budgets = budgetService.getBudgets(pageable);
+        return ResponseEntity.ok(ApiResponse.success(budgets));
+    }
     
     @PostMapping
     @Operation(summary = "Create a new budget")
@@ -48,9 +57,9 @@ public class BudgetController {
     }
     
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete budget")
+    @Operation(summary = "Delete budget (soft delete)")
     public ResponseEntity<ApiResponse<Void>> deleteBudget(@PathVariable UUID id) {
-        budgetService.deleteBudget(id);
+        budgetService.softDeleteBudget(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Budget deleted successfully"));
     }
 }

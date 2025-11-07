@@ -637,6 +637,114 @@ src/
 - `POST /api/auth/logout` - Cerrar sesión
 - `GET /api/auth/me` - Obtener usuario actual autenticado
 
+#### Manejo de Autenticación y Tokens
+
+El backend utiliza JWT (JSON Web Tokens) para la autenticación. Para mantener la sesión del usuario después de recargar la página, el frontend debe:
+
+**1. Guardar el token después del login:**
+
+```javascript
+// Después de un login exitoso
+const response = await fetch('http://localhost:8080/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password })
+});
+
+const data = await response.json();
+const token = data.data.token; // Token JWT
+const refreshToken = data.data.refreshToken; // Refresh token
+
+// Guardar en localStorage o sessionStorage
+localStorage.setItem('token', token);
+localStorage.setItem('refreshToken', refreshToken);
+localStorage.setItem('user', JSON.stringify(data.data.user));
+```
+
+**2. Enviar el token en cada request:**
+
+```javascript
+// Interceptor o función para agregar el token a todas las requests
+const token = localStorage.getItem('token');
+
+fetch('http://localhost:8080/api/users/me', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+**3. Validar sesión al recargar la página:**
+
+```javascript
+// Al cargar la aplicación, verificar si hay un token guardado
+const token = localStorage.getItem('token');
+
+if (token) {
+  // Validar el token llamando a /api/auth/me
+  try {
+    const response = await fetch('http://localhost:8080/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Usuario autenticado, restaurar sesión
+      const user = data.data;
+      // Actualizar estado de la aplicación con el usuario
+    } else {
+      // Token inválido o expirado, limpiar storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      // Redirigir a login
+    }
+  } catch (error) {
+    // Error de red, limpiar storage
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  }
+}
+```
+
+**4. Formato del header Authorization:**
+
+Todas las requests autenticadas deben incluir el header:
+```
+Authorization: Bearer <token>
+```
+
+**5. Respuesta del login:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzUxMiJ9...",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9...",
+    "user": {
+      "id": "uuid",
+      "name": "Nombre",
+      "lastName": "Apellido",
+      "email": "email@example.com",
+      "role": "USER" | "ADMIN",
+      "currency": "PEN",
+      "language": "es",
+      ...
+    }
+  },
+  "message": "Login successful",
+  "timestamp": "2025-11-07T10:36:24.029891"
+}
+```
+
+**Nota:** El token tiene una expiración configurada (por defecto 15 minutos). El refresh token tiene una expiración más larga (por defecto 7 días). El endpoint `/api/auth/refresh` puede usarse para obtener un nuevo token cuando el actual expire.
+
 ### Usuarios (`/api/users`)
 - `GET /api/users/me` - Obtener perfil del usuario actual
 - `PUT /api/users/me` - Actualizar perfil del usuario
@@ -648,45 +756,172 @@ src/
 - `POST /api/groups` - Crear nuevo grupo
 - `GET /api/groups/{id}` - Obtener grupo por ID
 - `PUT /api/groups/{id}` - Actualizar grupo
-- `DELETE /api/groups/{id}` - Eliminar grupo
-- `POST /api/groups/{id}/members` - Agregar miembro al grupo (query param: userId)
-- `DELETE /api/groups/{id}/members/{userId}` - Eliminar miembro del grupo
+- `DELETE /api/groups/{id}` - Eliminar grupo (soft delete)
+- `POST /api/groups/{id}/members` - Agregar miembro al grupo (query param: userId, requiere ser admin del grupo o ADMIN)
+- `DELETE /api/groups/{id}/members/{userId}` - Eliminar miembro del grupo (soft delete, requiere ser admin del grupo o ADMIN)
+- `PUT /api/groups/{id}/members/{userId}` - Actualizar rol y permisos del miembro (requiere ser admin del grupo o ADMIN)
+- `PUT /api/groups/{id}/members/{userId}/permissions` - Asignar permisos granulares al miembro (requiere ser admin del grupo o ADMIN)
 
 ### Gastos (`/api/expenses`)
-- `GET /api/expenses` - Listar gastos (query param opcional: groupId, paginación)
+- `GET /api/expenses` - Listar gastos (query param opcional: groupId, paginado)
 - `POST /api/expenses` - Crear nuevo gasto
 - `GET /api/expenses/{id}` - Obtener gasto por ID
 - `PUT /api/expenses/{id}` - Actualizar gasto
-- `DELETE /api/expenses/{id}` - Eliminar gasto
+- `DELETE /api/expenses/{id}` - Eliminar gasto (soft delete)
 
 ### Presupuestos (`/api/budgets`)
+- `GET /api/budgets` - Listar presupuestos del usuario (paginado)
 - `POST /api/budgets` - Crear nuevo presupuesto
 - `GET /api/budgets/{id}` - Obtener presupuesto por ID
 - `PUT /api/budgets/{id}` - Actualizar presupuesto
-- `DELETE /api/budgets/{id}` - Eliminar presupuesto
+- `DELETE /api/budgets/{id}` - Eliminar presupuesto (soft delete)
 
 ### Categorías (`/api/categories`)
-- `GET /api/categories` - Obtener categorías del usuario
+- `GET /api/categories` - Obtener categorías del usuario (paginado)
+- `GET /api/categories/{id}` - Obtener categoría por ID
+- `POST /api/categories` - Crear nueva categoría
+- `PUT /api/categories/{id}` - Actualizar categoría
+- `DELETE /api/categories/{id}` - Eliminar categoría (soft delete)
 
 ### Chat (`/api/conversations`)
+- `GET /api/conversations` - Listar conversaciones del usuario (paginado)
+- `POST /api/conversations` - Crear nueva conversación
+- `GET /api/conversations/{id}` - Obtener conversación por ID
+- `PUT /api/conversations/{id}` - Actualizar conversación
+- `DELETE /api/conversations/{id}` - Eliminar conversación (soft delete)
 - `POST /api/conversations/{conversationId}/messages` - Enviar mensaje en conversación
-- `GET /api/conversations/{conversationId}/messages` - Obtener mensajes de conversación (paginación)
+- `GET /api/conversations/{conversationId}/messages` - Obtener mensajes de conversación (paginado)
+- `PUT /api/conversations/messages/{id}` - Actualizar mensaje
+- `DELETE /api/conversations/messages/{id}` - Eliminar mensaje (soft delete)
 
 ### Liquidaciones (`/api/settlements`)
+- `GET /api/settlements` - Listar liquidaciones de un grupo (query param: groupId, paginado)
+- `POST /api/settlements` - Crear nueva liquidación
 - `GET /api/settlements/{id}` - Obtener liquidación por ID
+- `PUT /api/settlements/{id}` - Actualizar liquidación (Admin only)
+- `DELETE /api/settlements/{id}` - Eliminar liquidación (soft delete, Admin only)
 
 ### Suscripciones (`/api/subscriptions`)
-- `GET /api/subscriptions/current` - Obtener suscripción actual del usuario
+- `GET /api/subscriptions` - Listar suscripciones del usuario (paginado)
+- `POST /api/subscriptions` - Crear nueva suscripción
+- `GET /api/subscriptions/{id}` - Obtener suscripción por ID
+- `GET /api/subscriptions/current` - Obtener suscripción actual activa del usuario
+- `PUT /api/subscriptions/{id}` - Actualizar suscripción
+- `DELETE /api/subscriptions/{id}` - Eliminar suscripción (soft delete)
 
 ### Soporte (`/api/support`)
+- `GET /api/support/tickets` - Listar tickets de soporte del usuario (paginado)
 - `POST /api/support/tickets` - Crear ticket de soporte
 - `GET /api/support/tickets/{id}` - Obtener ticket de soporte por ID
+- `PUT /api/support/tickets/{id}` - Actualizar ticket (Admin only)
+- `DELETE /api/support/tickets/{id}` - Eliminar ticket (soft delete, Admin only)
 
 ### IA (`/api/ai`)
 - `POST /api/ai/process-message` - Procesar mensaje con IA
 
+#### Notas Importantes sobre los Endpoints
+
+**Soft Delete:**
+- Todos los endpoints `DELETE` para usuarios regulares realizan **soft delete** por defecto
+- El soft delete marca el registro con `deletedAt` pero no lo elimina físicamente de la base de datos
+- Los registros eliminados (soft delete) no aparecen en las consultas GET normales
+- Solo los administradores pueden realizar **hard delete** (eliminación física permanente) usando los endpoints `/api/admin` con el parámetro `?hard=true`
+
+**Paginación:**
+- Todos los endpoints GET que retornan listas soportan paginación mediante parámetros de query:
+  - `page`: Número de página (por defecto: 0)
+  - `size`: Tamaño de página (por defecto: 20)
+  - `sort`: Campo(s) para ordenar (ejemplo: `sort=createdAt,desc`)
+- Ejemplo: `GET /api/categories?page=0&size=10&sort=createdAt,desc`
+
+**Permisos y Roles:**
+- Los usuarios regulares solo pueden modificar sus propios recursos
+- Los administradores de grupo (`GroupRole.ADMIN`) pueden gestionar miembros y permisos dentro de sus grupos
+- Los administradores del sistema (`UserRole.ADMIN`) tienen acceso completo a todos los recursos mediante `/api/admin`
+- Los permisos granulares en grupos se almacenan en formato JSONB y pueden incluir permisos personalizados como `canEditExpenses`, `canDeleteExpenses`, etc.
+
 ### Administración (`/api/admin`)
-- `GET /api/admin/users` - Obtener todos los usuarios (solo administradores)
+
+**Usuarios:**
+- `GET /api/admin/users` - Obtener todos los usuarios (paginado)
+- `GET /api/admin/users/{id}` - Obtener usuario por ID
+- `DELETE /api/admin/users/{id}` - Eliminar usuario
+
+**Grupos:**
+- `GET /api/admin/groups` - Obtener todos los grupos (paginado)
+- `GET /api/admin/groups/{id}` - Obtener grupo por ID
+- `DELETE /api/admin/groups/{id}` - Eliminar grupo
+
+**Gastos:**
+- `GET /api/admin/expenses` - Obtener todos los gastos (paginado)
+- `GET /api/admin/expenses/{id}` - Obtener gasto por ID
+- `DELETE /api/admin/expenses/{id}` - Eliminar gasto
+
+**Participaciones en Gastos:**
+- `GET /api/admin/expense-shares` - Obtener todas las participaciones (paginado)
+- `GET /api/admin/expense-shares/{id}` - Obtener participación por ID
+- `DELETE /api/admin/expense-shares/{id}` - Eliminar participación
+
+**Presupuestos:**
+- `GET /api/admin/budgets` - Obtener todos los presupuestos (paginado)
+- `GET /api/admin/budgets/{id}` - Obtener presupuesto por ID
+- `DELETE /api/admin/budgets/{id}` - Eliminar presupuesto
+
+**Categorías:**
+- `GET /api/admin/categories` - Obtener todas las categorías (paginado)
+- `GET /api/admin/categories/{id}` - Obtener categoría por ID
+- `DELETE /api/admin/categories/{id}` - Eliminar categoría
+
+**Conversaciones:**
+- `GET /api/admin/conversations` - Obtener todas las conversaciones (paginado)
+- `GET /api/admin/conversations/{id}` - Obtener conversación por ID
+- `DELETE /api/admin/conversations/{id}` - Eliminar conversación
+
+**Mensajes:**
+- `GET /api/admin/messages` - Obtener todos los mensajes (paginado)
+- `GET /api/admin/messages/{id}` - Obtener mensaje por ID
+- `DELETE /api/admin/messages/{id}` - Eliminar mensaje
+
+**Liquidaciones:**
+- `GET /api/admin/settlements` - Obtener todas las liquidaciones (paginado)
+- `GET /api/admin/settlements/{id}` - Obtener liquidación por ID
+- `DELETE /api/admin/settlements/{id}` - Eliminar liquidación
+
+**Suscripciones:**
+- `GET /api/admin/subscriptions` - Obtener todas las suscripciones (paginado)
+- `GET /api/admin/subscriptions/{id}` - Obtener suscripción por ID
+- `DELETE /api/admin/subscriptions/{id}` - Eliminar suscripción
+
+**Tickets de Soporte:**
+- `GET /api/admin/support-tickets` - Obtener todos los tickets (paginado)
+- `GET /api/admin/support-tickets/{id}` - Obtener ticket por ID
+- `DELETE /api/admin/support-tickets/{id}` - Eliminar ticket
+
+**Invitaciones a Grupos:**
+- `GET /api/admin/group-invitations` - Obtener todas las invitaciones (paginado)
+- `GET /api/admin/group-invitations/{id}` - Obtener invitación por ID
+- `DELETE /api/admin/group-invitations/{id}` - Eliminar invitación
+
+**Usuarios de Grupos:**
+- `GET /api/admin/group-users` - Obtener todas las relaciones grupo-usuario (paginado)
+- `GET /api/admin/group-users/{id}` - Obtener relación por ID
+- `DELETE /api/admin/group-users/{id}` - Eliminar relación
+
+**Nota:** Todas las rutas de administración requieren autenticación y rol de administrador. Los endpoints de listado soportan paginación mediante parámetros `page`, `size` y `sort`.
+
+**Eliminación (DELETE):**
+- Por defecto, los endpoints DELETE realizan **soft delete** (marca `deletedAt` sin eliminar físicamente)
+- Para realizar **hard delete** (eliminación física permanente), agregar el parámetro `?hard=true`
+- Ejemplo: `DELETE /api/admin/users/{id}?hard=true` - Elimina permanentemente el usuario
+
+**Ejemplos:**
+```bash
+# Soft delete (por defecto)
+DELETE /api/admin/users/123e4567-e89b-12d3-a456-426614174000
+
+# Hard delete (eliminación permanente)
+DELETE /api/admin/users/123e4567-e89b-12d3-a456-426614174000?hard=true
+```
 
 ## Testing
 
