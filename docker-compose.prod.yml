@@ -1,0 +1,36 @@
+version: '3.8'
+
+# Docker Compose para producción con Neon PostgreSQL
+# Uso: docker-compose -f docker-compose.prod.yml up --build
+
+services:
+  # Spring Boot Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: splitia-backend-prod
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Neon PostgreSQL - Actualiza estas variables con tus credenciales
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://ep-dawn-frost-a5v2c5t1-pooler.us-east-2.aws.neon.tech:5432/neondb?sslmode=require}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-neondb_owner}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-npg_GFt8oBh1uUQM}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: true
+      # JWT - IMPORTANTE: Cambiar en producción
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production-min-256-bits-please-use-a-very-long-secret-key-for-production-environments}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # CORS - Actualizar con tus dominios de producción
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
