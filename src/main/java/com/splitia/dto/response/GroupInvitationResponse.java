@@ -1,5 +1,6 @@
-package com.splitia.dto.response;
+﻿package com.splitia.dto.response;
 
+import com.splitia.model.enums.InvitationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,10 @@ public class GroupInvitationResponse {
     private Integer maxUses;
     private Integer currentUses;
     private Boolean isActive;
+    private String email;
+    private UUID invitedUserId;
+    private String invitedUserName;
+    private InvitationStatus status;
     private UUID groupId;
     private String groupName;
     private UUID createdById;
@@ -24,4 +29,3 @@ public class GroupInvitationResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

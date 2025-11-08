@@ -10,12 +10,14 @@ import com.splitia.repository.PlanRepository;
 import com.splitia.repository.SubscriptionRepository;
 import com.splitia.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PlanService {
     
     private final PlanRepository planRepository;
@@ -44,6 +46,8 @@ public class PlanService {
      */
     public void verifyKanbanAccess(User user) {
         Plan plan = getUserPlan(user);
+        log.info("[PLAN] verifyKanbanAccess: userId={}, email={}, planName={}, hasKanban={}",
+                user.getId(), user.getEmail(), plan.getName(), plan.getHasKanban());
         if (!plan.getHasKanban()) {
             throw new ForbiddenException("Kanban feature is not available in your plan. Please upgrade to PRO or ENTERPRISE.");
         }

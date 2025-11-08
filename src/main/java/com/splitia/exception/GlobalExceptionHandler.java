@@ -45,6 +45,20 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
     
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handleConflictException(ConflictException ex) {
+        log.error("Conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+    
+    @ExceptionHandler(GoneException.class)
+    public ResponseEntity<ApiResponse<Object>> handleGoneException(GoneException ex) {
+        log.error("Gone: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+    
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Object>> handleBadCredentialsException(BadCredentialsException ex) {
         log.error("Bad credentials: {}", ex.getMessage());
@@ -77,4 +91,3 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("An unexpected error occurred. Please try again later."));
     }
 }
-

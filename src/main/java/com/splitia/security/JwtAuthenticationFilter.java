@@ -30,6 +30,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = getJwtFromRequest(request);
             
+            if (!StringUtils.hasText(jwt)) {
+                log.debug("[SECURITY] Missing or malformed Authorization header for {} {}", request.getMethod(), request.getRequestURI());
+            }
+            
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromToken(jwt);
                 
@@ -39,6 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else if (StringUtils.hasText(jwt)) {
+                // Token present but invalid/expired
+                log.warn("[SECURITY] Invalid or expired JWT for {} {}", request.getMethod(), request.getRequestURI());
             }
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);
