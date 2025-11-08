@@ -3,11 +3,16 @@ package com.splitia.service;
 import com.splitia.dto.request.CreateCategoryRequest;
 import com.splitia.dto.request.UpdateCategoryRequest;
 import com.splitia.dto.response.CategoryResponse;
+import com.splitia.exception.BadRequestException;
+import com.splitia.exception.ForbiddenException;
 import com.splitia.exception.ResourceNotFoundException;
 import com.splitia.mapper.CategoryMapper;
 import com.splitia.model.CustomCategory;
+import com.splitia.model.Group;
 import com.splitia.model.User;
 import com.splitia.repository.CategoryRepository;
+import com.splitia.repository.GroupRepository;
+import com.splitia.repository.GroupUserRepository;
 import com.splitia.repository.UserRepository;
 import com.splitia.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +32,19 @@ public class CategoryService {
     
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
+    private final GroupUserRepository groupUserRepository;
     private final CategoryMapper categoryMapper;
     
-    public Page<CategoryResponse> getCategories(Pageable pageable) {
+    public Page<CategoryResponse> getCategories(UUID groupId, Pageable pageable) {
         User currentUser = getCurrentUser();
-        return categoryRepository.findByUserId(currentUser.getId(), pageable)
+        
+        // Verify user is member of the group
+        if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), groupId)) {
+            throw new ForbiddenException("You are not a member of this group");
+        }
+        
+        return categoryRepository.findByGroupId(groupId, pageable)
                 .map(categoryMapper::toResponse);
     }
     
@@ -40,9 +53,9 @@ public class CategoryService {
         CustomCategory category = categoryRepository.findByIdAndDeletedAtIsNull(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
         
-        // Verify ownership
-        if (!category.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Category", "id", categoryId);
+        // Verify user is member of the group
+        if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), category.getGroup().getId())) {
+            throw new ForbiddenException("You are not a member of this group");
         }
         
         return categoryMapper.toResponse(category);
@@ -52,16 +65,26 @@ public class CategoryService {
     public CategoryResponse createCategory(CreateCategoryRequest request) {
         User currentUser = getCurrentUser();
         
-        // Check if category with same name already exists
-        if (categoryRepository.existsByUserIdAndName(currentUser.getId(), request.getName())) {
-            throw new RuntimeException("Category with this name already exists");
+        // Verify user is member of the group
+        if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), request.getGroupId())) {
+            throw new ForbiddenException("You are not a member of this group");
+        }
+        
+        // Get group
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(request.getGroupId())
+                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", request.getGroupId()));
+        
+        // Check if category with same name already exists in this group
+        if (categoryRepository.existsByGroupIdAndName(request.getGroupId(), request.getName())) {
+            throw new BadRequestException("Category with this name already exists in this group");
         }
         
         CustomCategory category = new CustomCategory();
         category.setName(request.getName());
         category.setIcon(request.getIcon());
         category.setColor(request.getColor());
-        category.setUser(currentUser);
+        category.setGroup(group);
+        category.setCreatedBy(currentUser);
         
         category = categoryRepository.save(category);
         return categoryMapper.toResponse(category);
@@ -73,15 +96,15 @@ public class CategoryService {
         CustomCategory category = categoryRepository.findByIdAndDeletedAtIsNull(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
         
-        // Verify ownership
-        if (!category.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Category", "id", categoryId);
+        // Verify user is member of the group
+        if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), category.getGroup().getId())) {
+            throw new ForbiddenException("You are not a member of this group");
         }
         
         if (request.getName() != null && !request.getName().equals(category.getName())) {
-            // Check if new name already exists
-            if (categoryRepository.existsByUserIdAndName(currentUser.getId(), request.getName())) {
-                throw new RuntimeException("Category with this name already exists");
+            // Check if new name already exists in this group
+            if (categoryRepository.existsByGroupIdAndName(category.getGroup().getId(), request.getName())) {
+                throw new BadRequestException("Category with this name already exists in this group");
             }
             category.setName(request.getName());
         }
@@ -102,9 +125,9 @@ public class CategoryService {
         CustomCategory category = categoryRepository.findByIdAndDeletedAtIsNull(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
         
-        // Verify ownership
-        if (!category.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Category", "id", categoryId);
+        // Verify user is member of the group
+        if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), category.getGroup().getId())) {
+            throw new ForbiddenException("You are not a member of this group");
         }
         
         category.setDeletedAt(LocalDateTime.now());

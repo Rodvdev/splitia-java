@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "custom_categories",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "name"}))
+       uniqueConstraints = @UniqueConstraint(columnNames = {"group_id", "name"}))
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class CustomCategory extends BaseEntity {
@@ -31,9 +31,14 @@ public class CustomCategory extends BaseEntity {
     private String color;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "group_id", nullable = false)
     @NotNull
-    private User user;
+    private Group group;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id", nullable = false)
+    @NotNull
+    private User createdBy;
     
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Expense> expenses = new ArrayList<>();

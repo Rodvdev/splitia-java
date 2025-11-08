@@ -16,5 +16,9 @@ public class CategoryResponse {
     private String icon;
     private String color;
     private LocalDateTime createdAt;
+    private UUID groupId;
+    private String groupName;
+    private UUID createdById;
+    private String createdByName;
 }
 

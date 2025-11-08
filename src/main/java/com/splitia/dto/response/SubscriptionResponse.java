@@ -23,5 +23,7 @@ public class SubscriptionResponse {
     private BigDecimal pricePerMonth;
     private String currency;
     private LocalDateTime createdAt;
+    private UUID userId;
+    private String userName;
 }
 

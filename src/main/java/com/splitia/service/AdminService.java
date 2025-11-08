@@ -491,16 +491,29 @@ public class AdminService {
     
     @Transactional
     public CategoryResponse createCategory(CreateCategoryRequest request) {
-        // Admin can create category for any user - use first user if needed
-        User user = userRepository.findAll().stream()
+        // Admin can create category for any group - get the group
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(request.getGroupId())
+                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", request.getGroupId()));
+        
+        // Check if category with same name already exists in this group
+        if (categoryRepository.existsByGroupIdAndName(request.getGroupId(), request.getName())) {
+            throw new BadRequestException("Category with this name already exists in this group");
+        }
+        
+        // Use first admin user as creator, or first user if no admin exists
+        User creator = userRepository.findAll().stream()
+                .filter(u -> "ADMIN".equals(u.getRole()))
                 .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("No users found"));
+                .orElse(userRepository.findAll().stream()
+                        .findFirst()
+                        .orElseThrow(() -> new ResourceNotFoundException("No users found")));
         
         CustomCategory category = new CustomCategory();
         category.setName(request.getName());
         category.setIcon(request.getIcon());
         category.setColor(request.getColor());
-        category.setUser(user);
+        category.setGroup(group);
+        category.setCreatedBy(creator);
         
         category = categoryRepository.save(category);
         return categoryMapper.toResponse(category);
@@ -511,7 +524,11 @@ public class AdminService {
         CustomCategory category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
         
-        if (request.getName() != null) {
+        if (request.getName() != null && !request.getName().equals(category.getName())) {
+            // Check if new name already exists in this group
+            if (categoryRepository.existsByGroupIdAndName(category.getGroup().getId(), request.getName())) {
+                throw new BadRequestException("Category with this name already exists in this group");
+            }
             category.setName(request.getName());
         }
         if (request.getIcon() != null) {
@@ -733,7 +750,7 @@ public class AdminService {
     // Subscriptions
     @Transactional(readOnly = true)
     public Page<SubscriptionResponse> getAllSubscriptions(Pageable pageable) {
-        return subscriptionRepository.findAll(pageable)
+        return subscriptionRepository.findAllWithUser(pageable)
                 .map(subscriptionMapper::toResponse);
     }
     
