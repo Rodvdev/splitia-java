@@ -1,7 +1,6 @@
 package com.splitia.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,7 +16,8 @@ public class SendMessageRequest {
     @Size(min = 1, message = "Content cannot be empty")
     private String content;
     
-    @NotNull(message = "Conversation ID is required")
+    // conversationId viene del path variable, no es necesario en el body
+    // Se establece automáticamente en el controlador
     private UUID conversationId;
 }
 

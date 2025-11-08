@@ -219,22 +219,37 @@ const deleteConversation = async (conversationId: string) => {
 - Envía un mensaje a una conversación
 - El usuario debe ser participante de la conversación
 - El mensaje se marca automáticamente como `isAI: false`
+- ⚠️ **IMPORTANTE**: El `conversationId` viene del path variable, NO lo incluyas en el body
 
 **Body:**
 ```typescript
 {
-  content: string;  // REQUERIDO: Contenido del mensaje (mínimo 1 carácter)
+  content: string;  // REQUERIDO: Contenido del mensaje (mínimo 1 carácter, no puede estar vacío)
 }
 ```
+
+**⚠️ NOTA**: NO incluyas `conversationId` en el body. El backend lo toma automáticamente del path variable.
 
 **Ejemplo:**
 ```typescript
 const sendMessage = async (conversationId: string, content: string) => {
+  // ✅ CORRECTO: Solo envía content en el body
   const response = await axios.post(
     `/api/conversations/${conversationId}/messages`,
-    { content }
+    { content }  // Solo content, NO incluyas conversationId
   );
   return response.data.data; // MessageResponse
+};
+
+// ❌ INCORRECTO: No incluyas conversationId en el body
+const wrongSendMessage = async (conversationId: string, content: string) => {
+  const response = await axios.post(
+    `/api/conversations/${conversationId}/messages`,
+    { 
+      content,
+      conversationId  // ❌ Esto causará error 400
+    }
+  );
 };
 ```
 
@@ -547,17 +562,29 @@ const sendMessage = async (conversationId: string) => {
     `/api/conversations/${conversationId}/messages`,
     {
       content: 'Hola!'  // REQUERIDO: String no vacío
+      // NO incluyas conversationId aquí, viene del path variable
     }
   );
   return response.data;
 };
 
 // ❌ INCORRECTO: Content vacío o faltante
-const wrongMessage = async (conversationId: string) => {
+const wrongMessage1 = async (conversationId: string) => {
   const response = await axios.post(
     `/api/conversations/${conversationId}/messages`,
     {
       content: ''  // String vacío - Error 400
+    }
+  );
+};
+
+// ❌ INCORRECTO: Incluir conversationId en el body
+const wrongMessage2 = async (conversationId: string) => {
+  const response = await axios.post(
+    `/api/conversations/${conversationId}/messages`,
+    {
+      content: 'Hola!',
+      conversationId: conversationId  // ❌ No necesario, causa error 400
     }
   );
 };
