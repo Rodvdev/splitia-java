@@ -18,6 +18,7 @@ import com.splitia.repository.ConversationRepository;
 import com.splitia.repository.MessageRepository;
 import com.splitia.repository.UserRepository;
 import com.splitia.security.CustomUserDetails;
+import com.splitia.service.websocket.WebSocketNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,8 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +42,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final MessageMapper messageMapper;
     private final ConversationMapper conversationMapper;
+    private final WebSocketNotificationService webSocketNotificationService;
     
     public Page<ConversationResponse> getConversations(Pageable pageable) {
         User currentUser = getCurrentUser();
@@ -157,7 +160,19 @@ public class ChatService {
         message.setIsAI(false);
         
         message = messageRepository.save(message);
-        return messageMapper.toResponse(message);
+        MessageResponse response = messageMapper.toResponse(message);
+        
+        // Emit WebSocket event
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", response);
+        webSocketNotificationService.notifyMessageCreated(
+            message.getId(), 
+            conversation.getId(), 
+            data, 
+            currentUser.getId()
+        );
+        
+        return response;
     }
     
     public Page<MessageResponse> getMessages(UUID conversationId, Pageable pageable) {
@@ -190,7 +205,19 @@ public class ChatService {
         
         message.setContent(request.getContent());
         message = messageRepository.save(message);
-        return messageMapper.toResponse(message);
+        MessageResponse response = messageMapper.toResponse(message);
+        
+        // Emit WebSocket event
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", response);
+        webSocketNotificationService.notifyMessageUpdated(
+            message.getId(),
+            message.getConversation().getId(),
+            data,
+            currentUser.getId()
+        );
+        
+        return response;
     }
     
     @Transactional
@@ -204,8 +231,16 @@ public class ChatService {
             throw new ResourceNotFoundException("Message", "id", messageId);
         }
         
+        UUID conversationId = message.getConversation().getId();
         message.setDeletedAt(LocalDateTime.now());
         messageRepository.save(message);
+        
+        // Emit WebSocket event
+        webSocketNotificationService.notifyMessageDeleted(
+            messageId,
+            conversationId,
+            currentUser.getId()
+        );
     }
     
     private User getCurrentUser() {

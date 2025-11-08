@@ -396,5 +396,38 @@ public class WebSocketNotificationService {
         message.setUserId(userId);
         sendToTopic("/topic/audit/logs", message);
     }
+    
+    // Chat Events
+    public void notifyMessageCreated(UUID messageId, UUID conversationId, Map<String, Object> data, UUID userId) {
+        WebSocketMessage message = new WebSocketMessage(
+            "MESSAGE_CREATED", "CHAT", "CREATED", messageId, "Message"
+        );
+        message.setData(data);
+        message.setUserId(userId);
+        // Send to specific conversation topic
+        sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
+        // Also send to general chat messages topic
+        sendToTopic("/topic/chat/messages", message);
+    }
+    
+    public void notifyMessageUpdated(UUID messageId, UUID conversationId, Map<String, Object> data, UUID userId) {
+        WebSocketMessage message = new WebSocketMessage(
+            "MESSAGE_UPDATED", "CHAT", "UPDATED", messageId, "Message"
+        );
+        message.setData(data);
+        message.setUserId(userId);
+        sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
+        sendToTopic("/topic/chat/messages", message);
+    }
+    
+    public void notifyMessageDeleted(UUID messageId, UUID conversationId, UUID userId) {
+        WebSocketMessage message = new WebSocketMessage(
+            "MESSAGE_DELETED", "CHAT", "DELETED", messageId, "Message"
+        );
+        message.setData(Map.of("messageId", messageId.toString(), "conversationId", conversationId.toString()));
+        message.setUserId(userId);
+        sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
+        sendToTopic("/topic/chat/messages", message);
+    }
 }
 
