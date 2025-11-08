@@ -1,4 +1,4 @@
-﻿package com.splitia.dto.response;
+package com.splitia.dto.response;
 
 import com.splitia.model.enums.InvitationStatus;
 import lombok.AllArgsConstructor;
