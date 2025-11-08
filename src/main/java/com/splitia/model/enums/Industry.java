@@ -1,0 +1,21 @@
+package com.splitia.model.enums;
+
+public enum Industry {
+    TECHNOLOGY,
+    FINANCE,
+    HEALTHCARE,
+    RETAIL,
+    MANUFACTURING,
+    CONSULTING,
+    EDUCATION,
+    REAL_ESTATE,
+    HOSPITALITY,
+    TRANSPORTATION,
+    ENERGY,
+    MEDIA,
+    TELECOMMUNICATIONS,
+    AGRICULTURE,
+    CONSTRUCTION,
+    OTHER
+}
+

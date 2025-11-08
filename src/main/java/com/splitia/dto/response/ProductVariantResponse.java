@@ -1,0 +1,21 @@
+package com.splitia.dto.response;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ProductVariantResponse {
+    private UUID id;
+    private String sku;
+    private String name;
+    private BigDecimal price;
+    private BigDecimal cost;
+    private String attributes;
+}
+
