@@ -16,8 +16,9 @@ public interface GroupInvitationMapper {
     @Mapping(source = "group.name", target = "groupName")
     @Mapping(source = "createdBy.id", target = "createdById")
     @Mapping(source = "createdBy.name", target = "createdByName")
+    @Mapping(source = "invitedUser.id", target = "invitedUserId")
+    @Mapping(source = "invitedUser.name", target = "invitedUserName")
     GroupInvitationResponse toResponse(GroupInvitation invitation);
     
     List<GroupInvitationResponse> toResponseList(List<GroupInvitation> invitations);
 }
-

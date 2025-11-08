@@ -26,6 +26,7 @@ import com.splitia.repository.TaskTagRepository;
 import com.splitia.repository.UserRepository;
 import com.splitia.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TaskService {
     
     private final TaskRepository taskRepository;
@@ -74,9 +76,13 @@ public class TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
         
         User currentUser = getCurrentUser();
+        log.info("[KANBAN] GET tasks by group/status: userId={}, email={}, groupId={}, status={}",
+                currentUser.getId(), currentUser.getEmail(), groupId, status);
         verifyGroupMembership(currentUser, group);
+        log.debug("[KANBAN] Group membership verified for userId={} in groupId={}", currentUser.getId(), groupId);
         
         planService.verifyKanbanAccess(currentUser);
+        log.debug("[KANBAN] Plan access verified for userId={}", currentUser.getId());
         
         return taskRepository.findByGroupIdAndStatus(groupId, status).stream()
                 .map(this::toResponse)
@@ -158,9 +164,14 @@ public class TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task", "id", taskId));
         
         User currentUser = getCurrentUser();
+        log.info("[KANBAN] PUT update task: userId={}, email={}, taskId={}, groupId={}, requestedStatus={}, currentStatus={}",
+                currentUser.getId(), currentUser.getEmail(), taskId, task.getGroup().getId(),
+                request.getStatus(), task.getStatus());
         verifyGroupMembership(currentUser, task.getGroup());
+        log.debug("[KANBAN] Group membership verified for userId={} in groupId={}", currentUser.getId(), task.getGroup().getId());
         
         planService.verifyKanbanAccess(currentUser);
+        log.debug("[KANBAN] Plan access verified for userId={}", currentUser.getId());
         
         if (request.getTitle() != null) {
             task.setTitle(request.getTitle());
