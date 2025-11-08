@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.splitia.model.enums.InvitationStatus;
 
 @Entity
 @Table(name = "group_invitations")
@@ -34,6 +35,17 @@ public class GroupInvitation extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
     
+    @Column(name = "email")
+    private String email;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invited_user_id")
+    private User invitedUser;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private InvitationStatus status = InvitationStatus.PENDING;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id", nullable = false)
     @NotNull
@@ -44,4 +56,3 @@ public class GroupInvitation extends BaseEntity {
     @NotNull
     private User createdBy;
 }
-
