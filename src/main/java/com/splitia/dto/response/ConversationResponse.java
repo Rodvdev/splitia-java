@@ -15,6 +15,7 @@ public class ConversationResponse {
     private UUID id;
     private Boolean isGroupChat;
     private String name;
+    private UUID groupId;  // ID del grupo si es conversación de grupo, null si es chat individual/grupal manual
     private List<UserResponse> participants;
     private LocalDateTime createdAt;
 }

@@ -14,6 +14,7 @@ public interface ConversationMapper {
     
     @Mapping(source = "participants", target = "participants")
     @Mapping(source = "createdAt", target = "createdAt")
+    @Mapping(source = "group.id", target = "groupId")
     ConversationResponse toResponse(Conversation conversation);
     
     List<ConversationResponse> toResponseList(List<Conversation> conversations);

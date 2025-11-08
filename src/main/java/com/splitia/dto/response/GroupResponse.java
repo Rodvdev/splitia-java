@@ -16,6 +16,7 @@ public class GroupResponse {
     private String name;
     private String description;
     private String image;
+    private UUID conversationId;  // ID de la conversación del grupo
     private UserResponse createdBy;
     private List<GroupMemberResponse> members;
     private LocalDateTime createdAt;

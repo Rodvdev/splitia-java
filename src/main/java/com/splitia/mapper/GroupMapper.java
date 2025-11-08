@@ -17,6 +17,7 @@ public interface GroupMapper {
     GroupMapper INSTANCE = Mappers.getMapper(GroupMapper.class);
     
     @Mapping(source = "members", target = "members", qualifiedByName = "filterActiveMembers")
+    @Mapping(source = "conversation.id", target = "conversationId")
     GroupResponse toResponse(Group group);
     
     List<GroupResponse> toResponseList(List<Group> groups);
