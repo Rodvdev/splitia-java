@@ -62,7 +62,10 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/ws/**").permitAll() // WebSocket endpoint
-                        // Requerir rol ADMIN para todas las rutas de administración
+                        // Allow authenticated users to create group invitations via admin endpoint
+                        // (permission checks for group-admin are enforced inside the controller/service)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/group-invitations").authenticated()
+                        // Requerir rol ADMIN para todas las demás rutas de administración
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

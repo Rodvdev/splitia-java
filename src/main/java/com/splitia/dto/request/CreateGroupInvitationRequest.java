@@ -12,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateGroupInvitationRequest {
-    @NotNull(message = "Group ID is required")
+    // groupId is optional when creating an invitation via the group-scoped endpoint
     private UUID groupId;
     
     private LocalDateTime expiresAt;

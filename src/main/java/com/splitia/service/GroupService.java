@@ -9,6 +9,11 @@ import com.splitia.exception.BadRequestException;
 import com.splitia.exception.ForbiddenException;
 import com.splitia.exception.ResourceNotFoundException;
 import com.splitia.mapper.GroupMapper;
+import com.splitia.mapper.GroupInvitationMapper;
+import com.splitia.dto.request.CreateGroupInvitationRequest;
+import com.splitia.dto.response.GroupInvitationResponse;
+import com.splitia.model.GroupInvitation;
+import com.splitia.repository.GroupInvitationRepository;
 import com.splitia.mapper.UserMapper;
 import com.splitia.model.Conversation;
 import com.splitia.model.Group;
@@ -39,10 +44,12 @@ import java.util.stream.Collectors;
 public class GroupService {
     
     private final GroupRepository groupRepository;
+    private final GroupInvitationRepository groupInvitationRepository;
     private final GroupUserRepository groupUserRepository;
     private final UserRepository userRepository;
     private final ConversationRepository conversationRepository;
     private final GroupMapper groupMapper;
+    private final GroupInvitationMapper groupInvitationMapper;
     
     @Transactional
     public GroupResponse createGroup(CreateGroupRequest request) {
@@ -71,6 +78,30 @@ public class GroupService {
         conversationRepository.save(conversation);
         
         return groupMapper.toResponse(group);
+    }
+
+    @Transactional
+    public GroupInvitationResponse createGroupInvitation(UUID groupId, CreateGroupInvitationRequest request) {
+        Group group = groupRepository.findByIdAndDeletedAtIsNull(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", groupId));
+
+        User currentUser = getCurrentUser();
+
+        // Only group admins or system admins can create invitations
+        if (!isGroupAdminOrSystemAdmin(currentUser, group)) {
+            throw new ForbiddenException("Only group admins can create invitations");
+        }
+
+        GroupInvitation invitation = new GroupInvitation();
+        invitation.setToken(java.util.UUID.randomUUID().toString());
+        invitation.setExpiresAt(request.getExpiresAt());
+        invitation.setMaxUses(request.getMaxUses());
+        invitation.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        invitation.setGroup(group);
+        invitation.setCreatedBy(currentUser);
+
+        invitation = groupInvitationRepository.save(invitation);
+        return groupInvitationMapper.toResponse(invitation);
     }
     
     public List<GroupResponse> getUserGroups() {

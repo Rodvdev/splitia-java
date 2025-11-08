@@ -11,6 +11,9 @@ import com.splitia.model.enums.ShareType;
 import com.splitia.model.enums.SubscriptionStatus;
 import com.splitia.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.splitia.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -898,27 +901,40 @@ public class AdminService {
     
     @Transactional
     public GroupInvitationResponse createGroupInvitation(CreateGroupInvitationRequest request) {
-        Group group = groupRepository.findById(request.getGroupId())
-                .orElseThrow(() -> new ResourceNotFoundException("Group", "id", request.getGroupId()));
-        
-        // Admin can create invitation - use first admin user
-        User createdBy = userRepository.findAll().stream()
-                .filter(u -> "ADMIN".equals(u.getRole()))
-                .findFirst()
-                .orElse(userRepository.findAll().stream()
-                        .findFirst()
-                        .orElseThrow(() -> new ResourceNotFoundException("No users found")));
-        
-        GroupInvitation invitation = new GroupInvitation();
-        invitation.setToken(java.util.UUID.randomUUID().toString());
-        invitation.setExpiresAt(request.getExpiresAt());
-        invitation.setMaxUses(request.getMaxUses());
-        invitation.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
-        invitation.setGroup(group);
-        invitation.setCreatedBy(createdBy);
-        
-        invitation = groupInvitationRepository.save(invitation);
-        return groupInvitationMapper.toResponse(invitation);
+    // Validate group exists
+    Group group = groupRepository.findById(request.getGroupId())
+        .orElseThrow(() -> new ResourceNotFoundException("Group", "id", request.getGroupId()));
+
+    // Get current authenticated user
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+    User currentUser = userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
+        .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
+
+    // Allow if system admin
+    boolean isSystemAdmin = currentUser.getRole() != null && currentUser.getRole().equals("ADMIN");
+
+    // Or if group admin
+    boolean isGroupAdmin = false;
+    GroupUser groupUser = groupUserRepository.findByUserIdAndGroupId(currentUser.getId(), group.getId()).orElse(null);
+    if (groupUser != null && groupUser.getRole() == com.splitia.model.enums.GroupRole.ADMIN) {
+        isGroupAdmin = true;
+    }
+
+    if (!isSystemAdmin && !isGroupAdmin) {
+        throw new com.splitia.exception.ForbiddenException("Only system admins or group admins can create invitations");
+    }
+
+    GroupInvitation invitation = new GroupInvitation();
+    invitation.setToken(java.util.UUID.randomUUID().toString());
+    invitation.setExpiresAt(request.getExpiresAt());
+    invitation.setMaxUses(request.getMaxUses());
+    invitation.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+    invitation.setGroup(group);
+    invitation.setCreatedBy(currentUser);
+
+    invitation = groupInvitationRepository.save(invitation);
+    return groupInvitationMapper.toResponse(invitation);
     }
     
     @Transactional

@@ -1,6 +1,8 @@
 package com.splitia.controller;
 
 import com.splitia.dto.request.AssignPermissionsRequest;
+import com.splitia.dto.request.CreateGroupInvitationRequest;
+import com.splitia.dto.response.GroupInvitationResponse;
 import com.splitia.dto.request.CreateGroupRequest;
 import com.splitia.dto.request.UpdateGroupMemberRequest;
 import com.splitia.dto.request.UpdateGroupRequest;
@@ -100,6 +102,16 @@ public class GroupController {
             @Valid @RequestBody AssignPermissionsRequest request) {
         groupService.assignPermissions(id, userId, request);
         return ResponseEntity.ok(ApiResponse.success(null, "Permissions assigned successfully"));
+    }
+
+    @PostMapping("/{id}/invitations")
+    @Operation(summary = "Create group invitation (Group admin or System admin)")
+    public ResponseEntity<ApiResponse<GroupInvitationResponse>> createGroupInvitation(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateGroupInvitationRequest request) {
+        GroupInvitationResponse invitation = groupService.createGroupInvitation(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(invitation, "Invitation created successfully"));
     }
 }
 
