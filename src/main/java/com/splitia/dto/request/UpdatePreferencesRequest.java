@@ -10,5 +10,9 @@ import lombok.NoArgsConstructor;
 public class UpdatePreferencesRequest {
     private String currency;
     private String language;
+    private String theme;
+    private Boolean notificationsEnabled;
+    private String dateFormat;
+    private String timeFormat;
 }
 

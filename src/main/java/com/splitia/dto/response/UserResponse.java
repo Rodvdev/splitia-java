@@ -19,6 +19,10 @@ public class UserResponse {
     private String image;
     private String currency;
     private String language;
+    private String theme;
+    private Boolean notificationsEnabled;
+    private String dateFormat;
+    private String timeFormat;
     private String role;
     private LocalDateTime createdAt;
 }

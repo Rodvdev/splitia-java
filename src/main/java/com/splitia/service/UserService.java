@@ -145,6 +145,18 @@ public class UserService {
         if (request.getLanguage() != null) {
             user.setLanguage(request.getLanguage());
         }
+        if (request.getTheme() != null) {
+            user.setTheme(request.getTheme());
+        }
+        if (request.getNotificationsEnabled() != null) {
+            user.setNotificationsEnabled(request.getNotificationsEnabled());
+        }
+        if (request.getDateFormat() != null) {
+            user.setDateFormat(request.getDateFormat());
+        }
+        if (request.getTimeFormat() != null) {
+            user.setTimeFormat(request.getTimeFormat());
+        }
         
         user = userRepository.save(user);
         return userMapper.toResponse(user);
