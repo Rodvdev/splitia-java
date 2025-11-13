@@ -103,16 +103,34 @@ public class ExpenseService {
             BigDecimal totalShares = request.getShares().stream()
                     .map(ExpenseShareRequest::getAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            if (totalShares.compareTo(request.getAmount()) != 0) {
-                throw new BadRequestException("Sum of shares must equal the expense amount");
-            }
-            for (ExpenseShareRequest shareRequest : request.getShares()) {
+            int cmp = totalShares.compareTo(request.getAmount());
+            if (cmp > 0) {
+                expenseShareRepository.deleteAll(expenseShareRepository.findByExpenseId(expense.getId()));
                 ExpenseShare share = new ExpenseShare();
                 share.setExpense(expense);
-                share.setUser(userRepository.findByIdAndDeletedAtIsNull(shareRequest.getUserId())
-                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", shareRequest.getUserId())));
-                share.setAmount(shareRequest.getAmount());
-                share.setType(shareRequest.getType() != null ? shareRequest.getType() : ShareType.EQUAL);
+                share.setUser(paidBy);
+                share.setAmount(request.getAmount());
+                share.setType(ShareType.EQUAL);
+                expenseShareRepository.save(share);
+                return expenseMapper.toResponse(expense);
+            }
+            java.util.Map<java.util.UUID, java.math.BigDecimal> amountMap = new java.util.HashMap<>();
+            for (ExpenseShareRequest sr : request.getShares()) {
+                java.math.BigDecimal amt = amountMap.getOrDefault(sr.getUserId(), java.math.BigDecimal.ZERO);
+                amountMap.put(sr.getUserId(), amt.add(sr.getAmount()));
+            }
+            if (cmp < 0) {
+                java.math.BigDecimal diff = request.getAmount().subtract(totalShares);
+                java.math.BigDecimal paidByAmt = amountMap.getOrDefault(paidBy.getId(), java.math.BigDecimal.ZERO);
+                amountMap.put(paidBy.getId(), paidByAmt.add(diff));
+            }
+            for (java.util.Map.Entry<java.util.UUID, java.math.BigDecimal> entry : amountMap.entrySet()) {
+                ExpenseShare share = new ExpenseShare();
+                share.setExpense(expense);
+                share.setUser(userRepository.findByIdAndDeletedAtIsNull(entry.getKey())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", entry.getKey())));
+                share.setAmount(entry.getValue());
+                share.setType(ShareType.EQUAL);
                 expenseShareRepository.save(share);
             }
         }
@@ -252,8 +270,10 @@ public class ExpenseService {
     
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails)) {
+            throw new com.splitia.exception.UnauthorizedException("Unauthorized");
+        }
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        
         return userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
     }
