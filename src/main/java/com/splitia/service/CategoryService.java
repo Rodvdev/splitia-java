@@ -38,12 +38,18 @@ public class CategoryService {
     
     public Page<CategoryResponse> getCategories(UUID groupId, Pageable pageable) {
         User currentUser = getCurrentUser();
-        
-        // Verify user is member of the group
+        if (groupId == null) {
+            java.util.List<Group> groups = groupRepository.findByUserId(currentUser.getId());
+            if (groups == null || groups.isEmpty()) {
+                return new org.springframework.data.domain.PageImpl<>(java.util.List.of(), pageable, 0);
+            }
+            java.util.List<java.util.UUID> groupIds = groups.stream().map(Group::getId).toList();
+            return categoryRepository.findByGroupIds(groupIds, pageable)
+                    .map(categoryMapper::toResponse);
+        }
         if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), groupId)) {
             throw new ForbiddenException("You are not a member of this group");
         }
-        
         return categoryRepository.findByGroupId(groupId, pageable)
                 .map(categoryMapper::toResponse);
     }
@@ -136,8 +142,10 @@ public class CategoryService {
     
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails)) {
+            throw new com.splitia.exception.UnauthorizedException("Unauthorized");
+        }
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        
         return userRepository.findByIdAndDeletedAtIsNull(userDetails.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userDetails.getUserId()));
     }

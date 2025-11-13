@@ -41,7 +41,6 @@ public class CreateExpenseRequest {
     @NotNull(message = "Paid by user ID is required")
     private UUID paidById;
     
-    @NotNull(message = "Shares are required")
     private List<ExpenseShareRequest> shares;
 }
 

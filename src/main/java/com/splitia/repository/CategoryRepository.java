@@ -22,6 +22,14 @@ public interface CategoryRepository extends JpaRepository<CustomCategory, UUID> 
     @EntityGraph(attributePaths = {"group", "createdBy"})
     @Query("SELECT c FROM CustomCategory c WHERE c.group.id = :groupId AND c.deletedAt IS NULL")
     Page<CustomCategory> findByGroupId(@Param("groupId") UUID groupId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"group", "createdBy"})
+    @Query("SELECT c FROM CustomCategory c JOIN c.group g JOIN g.members m WHERE m.user.id = :userId AND c.deletedAt IS NULL AND g.deletedAt IS NULL AND m.deletedAt IS NULL")
+    Page<CustomCategory> findByUserId(@Param("userId") UUID userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"group", "createdBy"})
+    @Query("SELECT c FROM CustomCategory c WHERE c.group.id IN :groupIds AND c.deletedAt IS NULL")
+    Page<CustomCategory> findByGroupIds(@Param("groupIds") java.util.List<java.util.UUID> groupIds, Pageable pageable);
     
     @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM CustomCategory c WHERE c.group.id = :groupId AND c.name = :name AND c.deletedAt IS NULL")
     boolean existsByGroupIdAndName(@Param("groupId") UUID groupId, @Param("name") String name);

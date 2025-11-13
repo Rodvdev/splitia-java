@@ -26,9 +26,9 @@ public class CategoryController {
     private final CategoryService categoryService;
     
     @GetMapping
-    @Operation(summary = "Get categories for a group (paginated)")
+    @Operation(summary = "Get categories (optionally filter by group) paginated")
     public ResponseEntity<ApiResponse<Page<CategoryResponse>>> getCategories(
-            @RequestParam UUID groupId,
+            @RequestParam(required = false) UUID groupId,
             Pageable pageable) {
         Page<CategoryResponse> categories = categoryService.getCategories(groupId, pageable);
         return ResponseEntity.ok(ApiResponse.success(categories));

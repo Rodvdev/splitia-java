@@ -8,6 +8,9 @@ import com.splitia.exception.BadRequestException;
 import com.splitia.exception.ForbiddenException;
 import com.splitia.exception.ResourceNotFoundException;
 import com.splitia.mapper.ExpenseMapper;
+import com.splitia.model.CustomCategory;
+import com.splitia.model.enums.ShareType;
+import com.splitia.repository.CategoryRepository;
 import com.splitia.model.Expense;
 import com.splitia.model.ExpenseShare;
 import com.splitia.model.Group;
@@ -43,6 +46,7 @@ public class ExpenseService {
     private final GroupRepository groupRepository;
     private final GroupUserRepository groupUserRepository;
     private final ExpenseMapper expenseMapper;
+    private final CategoryRepository categoryRepository;
     
     @Transactional
     public ExpenseResponse createExpense(CreateExpenseRequest request) {
@@ -70,26 +74,47 @@ public class ExpenseService {
             
             expense.setGroup(group);
         }
+
+        if (request.getCategoryId() != null) {
+            CustomCategory category = categoryRepository.findByIdAndDeletedAtIsNull(request.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category", "id", request.getCategoryId()));
+            if (expense.getGroup() != null && !category.getGroup().getId().equals(expense.getGroup().getId())) {
+                throw new BadRequestException("Category does not belong to the selected group");
+            }
+            if (expense.getGroup() == null) {
+                if (!groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), category.getGroup().getId())) {
+                    throw new ForbiddenException("You are not a member of this group");
+                }
+                expense.setGroup(category.getGroup());
+            }
+            expense.setCategory(category);
+        }
         
         expense = expenseRepository.save(expense);
         
-        // Crear shares
-        BigDecimal totalShares = request.getShares().stream()
-                .map(ExpenseShareRequest::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        if (totalShares.compareTo(request.getAmount()) != 0) {
-            throw new BadRequestException("Sum of shares must equal the expense amount");
-        }
-        
-        for (ExpenseShareRequest shareRequest : request.getShares()) {
+        if (request.getShares() == null || request.getShares().isEmpty()) {
             ExpenseShare share = new ExpenseShare();
             share.setExpense(expense);
-            share.setUser(userRepository.findByIdAndDeletedAtIsNull(shareRequest.getUserId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", shareRequest.getUserId())));
-            share.setAmount(shareRequest.getAmount());
-            share.setType(shareRequest.getType());
+            share.setUser(paidBy);
+            share.setAmount(request.getAmount());
+            share.setType(ShareType.EQUAL);
             expenseShareRepository.save(share);
+        } else {
+            BigDecimal totalShares = request.getShares().stream()
+                    .map(ExpenseShareRequest::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (totalShares.compareTo(request.getAmount()) != 0) {
+                throw new BadRequestException("Sum of shares must equal the expense amount");
+            }
+            for (ExpenseShareRequest shareRequest : request.getShares()) {
+                ExpenseShare share = new ExpenseShare();
+                share.setExpense(expense);
+                share.setUser(userRepository.findByIdAndDeletedAtIsNull(shareRequest.getUserId())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", shareRequest.getUserId())));
+                share.setAmount(shareRequest.getAmount());
+                share.setType(shareRequest.getType() != null ? shareRequest.getType() : ShareType.EQUAL);
+                expenseShareRepository.save(share);
+            }
         }
         
         return expenseMapper.toResponse(expense);
