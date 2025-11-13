@@ -130,6 +130,9 @@ public class UserService {
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
             throw new BadRequestException("Current password is incorrect");
         }
+        if (request.getConfirmNewPassword() != null && !request.getNewPassword().equals(request.getConfirmNewPassword())) {
+            throw new BadRequestException("New password confirmation does not match");
+        }
         
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);

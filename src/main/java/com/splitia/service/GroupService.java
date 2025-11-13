@@ -122,6 +122,15 @@ public class GroupService {
         
         return groupMapper.toResponse(group);
     }
+
+    @Transactional(readOnly = true)
+    public java.util.List<GroupInvitationResponse> getMyInvitations(com.splitia.model.enums.InvitationStatus status) {
+        User currentUser = getCurrentUser();
+        java.util.List<GroupInvitation> invitations = groupInvitationRepository.findForUser(
+                currentUser.getId(), currentUser.getEmail(), status != null ? status : com.splitia.model.enums.InvitationStatus.PENDING
+        );
+        return groupInvitationMapper.toResponseList(invitations);
+    }
     
     @Transactional
     public GroupResponse updateGroup(UUID groupId, UpdateGroupRequest request) {
