@@ -130,6 +130,9 @@ public class UserService {
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
             throw new BadRequestException("Current password is incorrect");
         }
+        if (request.getConfirmNewPassword() != null && !request.getNewPassword().equals(request.getConfirmNewPassword())) {
+            throw new BadRequestException("New password confirmation does not match");
+        }
         
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -144,6 +147,18 @@ public class UserService {
         }
         if (request.getLanguage() != null) {
             user.setLanguage(request.getLanguage());
+        }
+        if (request.getTheme() != null) {
+            user.setTheme(request.getTheme());
+        }
+        if (request.getNotificationsEnabled() != null) {
+            user.setNotificationsEnabled(request.getNotificationsEnabled());
+        }
+        if (request.getDateFormat() != null) {
+            user.setDateFormat(request.getDateFormat());
+        }
+        if (request.getTimeFormat() != null) {
+            user.setTimeFormat(request.getTimeFormat());
         }
         
         user = userRepository.save(user);

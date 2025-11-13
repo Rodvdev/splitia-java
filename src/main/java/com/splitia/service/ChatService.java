@@ -14,6 +14,8 @@ import com.splitia.model.ConversationParticipant;
 import com.splitia.model.Message;
 import com.splitia.model.User;
 import com.splitia.repository.ConversationParticipantRepository;
+import com.splitia.repository.GroupUserRepository;
+import com.splitia.repository.GroupRepository;
 import com.splitia.repository.ConversationRepository;
 import com.splitia.repository.MessageRepository;
 import com.splitia.repository.UserRepository;
@@ -39,6 +41,8 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
     private final ConversationParticipantRepository conversationParticipantRepository;
+    private final GroupUserRepository groupUserRepository;
+    private final GroupRepository groupRepository;
     private final UserRepository userRepository;
     private final MessageMapper messageMapper;
     private final ConversationMapper conversationMapper;
@@ -85,16 +89,28 @@ public class ChatService {
     public ConversationResponse getConversationById(UUID conversationId) {
         User currentUser = getCurrentUser();
         Conversation conversation = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
-        
-        // Verify user is a participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
-        
-        if (!isParticipant) {
-            throw new ResourceNotFoundException("Conversation", "id", conversationId);
+                .orElseGet(() -> conversationRepository.findByGroupId(conversationId)
+                        .orElseGet(() -> ensureGroupConversation(conversationId, currentUser)));
+        if (conversation.getGroup() != null) {
+            boolean isMember = groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), conversation.getGroup().getId());
+            if (!isMember) {
+                throw new ResourceNotFoundException("Conversation", "id", conversationId);
+            }
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                ConversationParticipant cp = new ConversationParticipant();
+                cp.setConversation(conversation);
+                cp.setUser(currentUser);
+                conversationParticipantRepository.save(cp);
+            }
+        } else {
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                throw new ResourceNotFoundException("Conversation", "id", conversationId);
+            }
         }
-        
         return conversationMapper.toResponse(conversation);
     }
     
@@ -142,14 +158,27 @@ public class ChatService {
     public MessageResponse sendMessage(SendMessageRequest request) {
         User currentUser = getCurrentUser();
         Conversation conversation = conversationRepository.findByIdAndDeletedAtIsNull(request.getConversationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", request.getConversationId()));
-        
-        // Verify user is a participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
-        
-        if (!isParticipant) {
-            throw new ResourceNotFoundException("Conversation", "id", request.getConversationId());
+                .orElseGet(() -> conversationRepository.findByGroupId(request.getConversationId())
+                        .orElseGet(() -> ensureGroupConversation(request.getConversationId(), currentUser)));
+        if (conversation.getGroup() != null) {
+            boolean isMember = groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), conversation.getGroup().getId());
+            if (!isMember) {
+                throw new ResourceNotFoundException("Conversation", "id", request.getConversationId());
+            }
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                ConversationParticipant cp = new ConversationParticipant();
+                cp.setConversation(conversation);
+                cp.setUser(currentUser);
+                conversationParticipantRepository.save(cp);
+            }
+        } else {
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                throw new ResourceNotFoundException("Conversation", "id", request.getConversationId());
+            }
         }
         
         Message message = new Message();
@@ -178,18 +207,55 @@ public class ChatService {
     public Page<MessageResponse> getMessages(UUID conversationId, Pageable pageable) {
         User currentUser = getCurrentUser();
         Conversation conversation = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
-        
-        // Verify user is a participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
-        
-        if (!isParticipant) {
-            throw new ResourceNotFoundException("Conversation", "id", conversationId);
+                .orElseGet(() -> conversationRepository.findByGroupId(conversationId)
+                        .orElseGet(() -> ensureGroupConversation(conversationId, currentUser)));
+        if (conversation.getGroup() != null) {
+            boolean isMember = groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), conversation.getGroup().getId());
+            if (!isMember) {
+                throw new ResourceNotFoundException("Conversation", "id", conversationId);
+            }
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                ConversationParticipant cp = new ConversationParticipant();
+                cp.setConversation(conversation);
+                cp.setUser(currentUser);
+                conversationParticipantRepository.save(cp);
+            }
+        } else {
+            boolean isParticipant = conversation.getParticipants().stream()
+                    .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()) && p.getDeletedAt() == null);
+            if (!isParticipant) {
+                throw new ResourceNotFoundException("Conversation", "id", conversationId);
+            }
         }
         
-        return messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId, pageable)
+        return messageRepository.findByConversationIdOrderByCreatedAtDesc(conversation.getId(), pageable)
                 .map(messageMapper::toResponse);
+    }
+
+    private Conversation ensureGroupConversation(UUID groupId, User currentUser) {
+        return groupRepository.findByIdAndDeletedAtIsNull(groupId)
+                .map(group -> {
+                    boolean isMember = groupUserRepository.existsByUserIdAndGroupId(currentUser.getId(), group.getId());
+                    if (!isMember) {
+                        throw new ResourceNotFoundException("Conversation", "id", groupId);
+                    }
+                    return conversationRepository.findByGroupId(group.getId())
+                            .orElseGet(() -> {
+                                Conversation c = new Conversation();
+                                c.setGroup(group);
+                                c.setIsGroupChat(true);
+                                c.setName(group.getName());
+                                c = conversationRepository.save(c);
+                                ConversationParticipant cp = new ConversationParticipant();
+                                cp.setConversation(c);
+                                cp.setUser(currentUser);
+                                conversationParticipantRepository.save(cp);
+                                return c;
+                            });
+                })
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", groupId));
     }
     
     @Transactional

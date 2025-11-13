@@ -406,8 +406,6 @@ public class WebSocketNotificationService {
         message.setUserId(userId);
         // Send to specific conversation topic
         sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
-        // Also send to general chat messages topic
-        sendToTopic("/topic/chat/messages", message);
     }
     
     public void notifyMessageUpdated(UUID messageId, UUID conversationId, Map<String, Object> data, UUID userId) {
@@ -417,7 +415,6 @@ public class WebSocketNotificationService {
         message.setData(data);
         message.setUserId(userId);
         sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
-        sendToTopic("/topic/chat/messages", message);
     }
     
     public void notifyMessageDeleted(UUID messageId, UUID conversationId, UUID userId) {
@@ -427,7 +424,6 @@ public class WebSocketNotificationService {
         message.setData(Map.of("messageId", messageId.toString(), "conversationId", conversationId.toString()));
         message.setUserId(userId);
         sendToTopic("/topic/chat/conversations/" + conversationId + "/messages", message);
-        sendToTopic("/topic/chat/messages", message);
     }
 }
 

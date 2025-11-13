@@ -50,6 +50,18 @@ public class User extends BaseEntity {
     
     @Column(nullable = false)
     private String language = "es";
+
+    @Column(nullable = false)
+    private String theme = "light";
+
+    @Column(name = "notifications_enabled", nullable = false)
+    private Boolean notificationsEnabled = true;
+
+    @Column(name = "date_format", nullable = false)
+    private String dateFormat = "DD/MM/YYYY";
+
+    @Column(name = "time_format", nullable = false)
+    private String timeFormat = "24H";
     
     @Column(name = "external_id")
     private String externalId; // Para auth externa
